@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <time.h>
@@ -106,6 +107,7 @@ struct editor_config {
 	time_t statusmsg_time; 
 	struct editor_syntax *syntax; 
 	struct termios orig_termios;
+	int new_file; 
 };
 
 struct editor_config E;
@@ -729,15 +731,30 @@ editor_open(char *filename) {
  	char *line = NULL;
   	size_t linecap = 0;
   	ssize_t linelen;
+  	struct stat stat_buffer; 
 
   	free(E.filename); 
   	E.filename = strdup(filename); 
 
   	editor_select_syntax_highlight(); 
  
+  	// TODO new file (not necessarily need be writeable)
+  	if (stat(filename, &stat_buffer) == -1) {
+  		if (errno == ENOENT) {
+  			E.new_file = 1; 
+  			E.dirty = 0; 
+  			return; 
+  		} else {
+  			die("stat");
+  		}
+  	}
+
+
  	FILE *fp = fopen(filename, "r");
-  	if (!fp) die("fopen");
- 
+  	if (!fp) {
+  		die("fopen");
+ 	}
+
   	while ((linelen = getline(&line, &linecap, fp)) != -1) {
     	if (linelen > 0 && (line[linelen - 1] == '\n' 
     					|| line[linelen - 1] == '\r'))
@@ -772,7 +789,8 @@ editor_save() {
 			if (write(fd, buf, len) == len) {
         		close(fd);
         		free(buf);
-        		E.dirty = 0; 
+        		E.dirty = 0;
+        		E.new_file = 0;  
         		editor_set_status_message("%d bytes written to disk", len);
 				return;
 			}
@@ -1016,8 +1034,8 @@ editor_draw_status_bar(struct abuf *ab) {
 	char status[80], rstatus[80];
 
 	ab_append(ab, "\x1b[7m", 4); 
-	len = snprintf(status, sizeof(status), "%.20s - %d lines %s", 
-		E.filename ? E.filename : "[No name]", E.numrows, 
+	len = snprintf(status, sizeof(status), "%.20s %s - %d lines %s", 
+		E.filename ? E.filename : "[No name]", E.new_file ? "[New file]" : "", E.numrows, 
 		E.dirty ? "(modified)" : ""); 
 	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
 		E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
@@ -1299,6 +1317,7 @@ init_editor() {
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0; 
 	E.syntax = NULL; 
+	E.new_file = 0; 
 
 	if (get_window_size(&E.screenrows, &E.screencols) == -1)
 		die("get_window_size");
