@@ -324,7 +324,7 @@ editor_update_syntax(erow *row) {
 	int i = 0; 
 	int prev_sep = 1; 
 	int in_string = 0; 
-	int in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment); 
+	int in_comment = 0; //(row->idx > 0 && E.row[row->idx - 1].hl_open_comment); 
 	char prev_char = '\0'; /* JK */
 	char *scs; 
 	char *mcs;
@@ -332,7 +332,7 @@ editor_update_syntax(erow *row) {
 	int mcs_len;
 	int mce_len; 
 	int scs_len; 
-	char **keywords = E.syntax->keywords; 
+	char **keywords; // = E.syntax->keywords; 
 	int changed; 
 
 	row->hl = realloc(row->hl, row->rsize);
@@ -340,6 +340,9 @@ editor_update_syntax(erow *row) {
 
 	if (E.syntax == NULL)
 		return; 
+
+	in_comment = (row->idx > 0 && E.row[row->idx - 1].hl_open_comment); 
+	keywords = E.syntax->keywords; 
 
 	scs = E.syntax->singleline_comment_start;
 	mcs = E.syntax->multiline_comment_start;
@@ -477,6 +480,7 @@ editor_select_syntax_highlight() {
 	unsigned int j; 
 
 	E.syntax = NULL;
+
 	if (E.filename == NULL)
 		return; 
 
@@ -765,7 +769,6 @@ editor_open(char *filename) {
 	free(line);
 	fclose(fp);
 	E.dirty = 0; 
-
 }
 
 void
@@ -985,7 +988,8 @@ editor_draw_rows(struct abuf *ab) {
       			len = E.screencols;
 
       		c  = &E.row[filerow].render[E.coloff];
-      		hl = &E.row[filerow].hl[E.coloff]; 
+      		
+      		hl = &E.row[filerow].hl[E.coloff];
 
       		for (j = 0; j < len; j++) {
       			if (iscntrl(c[j])) {
@@ -1038,7 +1042,7 @@ editor_draw_status_bar(struct abuf *ab) {
 		E.filename ? E.filename : "[No name]", E.new_file ? "[New file]" : "", E.numrows, 
 		E.dirty ? "(modified)" : ""); 
 	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
-		E.syntax ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
+		E.syntax != NULL ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
 
 	if (len > E.screencols)
 		len = E.screencols; 
