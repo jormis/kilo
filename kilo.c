@@ -118,22 +118,54 @@ char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL };
 char *C_HL_keywords[] = {
 	"switch", "if", "while", "for", "break", "continue", "return", "else",
 	"struct", "union", "typedef", "static", "enum", "class", "case",
-	"const",
+	"const", "default", "goto", 
 	"#define", "#ifdef", "#ifndef", "#endif", "#include",
 
 	"int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
 	"void|", NULL
 };
 
+char *Java_HL_extensions[] = { ".java", NULL };
+char *Java_HL_keywords[] = {
+	"abstract", "assert", "break", "case", "catch", "class", "const", 
+	"continue", "default", "do", "else", "enum", "extends", "final",
+	"finally", "for", "goto", "if", "implements", "import", "instanceof", 
+	"native", "new", "package", "private", "protected", "public", "return",  
+	"static", "strictfp", "super", "switch", "synchronized", "this", "throw",
+	"transient", "try", "void", "volatile", "while", "false", "null", "true",
+
+	"boolean|", "byte|", "char|", "double|", "float|", "int|", "long|", 
+	"Boolean|", "Byte|", "Character|", "Double|", "Float|", "Integer|", "Long|",
+	"short|", "Short|",
+
+	"@Deprecated", "@Override", "@SuppressWarnings", "@SafeVarargs", 
+	"@FunctionalInterface", "@Retention", "@Documented", "@Target", 
+	"@Inherited", "@Repeatable",
+
+	"@Test", // There will be more.
+
+	NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
-		"c", 
+		"C", 
 		C_HL_extensions, 
 		C_HL_keywords,
 		"//", 
 		"/*", "*/",
 		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
-	}
+	},
+	{
+		"Java", 
+		Java_HL_extensions, 
+		Java_HL_keywords,
+		"//", 
+		"/*", "*/",
+		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+	},
+
+
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
