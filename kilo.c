@@ -116,13 +116,45 @@ struct editor_config E;
 
 char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL }; 
 char *C_HL_keywords[] = {
-	"switch", "if", "while", "for", "break", "continue", "return", "else",
-	"struct", "union", "typedef", "static", "enum", "class", "case",
-	"const", "default", "goto", 
-	"#define", "#ifdef", "#ifndef", "#endif", "#include",
+	"auto", "break", "case", "const", "continue", "default", "do", 
+	"else", "enum", "extern", "for", "goto", "if", "register", 
+	"return", "signed", "sizeof", "static", "struct", "switch",
+	"typedef", "union", "unsigned", "volatile", "while",
 
-	"int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
-	"void|", NULL
+	/* C99 */
+	"restrict", "inline", "_Bool", "bool", "_Complex", "complex", 
+	"_Imaginary", "imaginary", "_Pragma", 
+	/* C11 */
+	"_Alignas", "alignas", "_Alignof", "alignof", 
+	"_Atomic", "atomic_bool", "atomic_int", 
+	"_Generic", "_Noreturn", "noreturn", 
+	"_Static_assert", "static_assert", 
+	"_Thread_local", "thread_local",  /* C11 */
+
+	/* "asm", "fortran", */
+
+	/* Those C++(upto 11) keywords not in C(upto11). */ 
+	"and", "and_eq", "asm", "atomic_cancel", "atomic_commit", 
+	"atomic_noexcept", "bitand", "bitor", "catch", "char16_t", 
+	"char32_t", "class", "compl", "concept", "constexpr", 
+	"const_cast", "decltype", "delete", "dynamic_cast", "explicit", 
+	"export", "false", "friend", "import", "module", "mutable", 
+	"namespace", "new", "noexcept", "not", "not_eq", "nullptr", 
+	"operator", "or", "or_eq", "private", "protected", "public",
+	"register", "reinterpret_cast", "requires", "static_assert",
+	"static_cast", "synchronized", "template", "this", "throw",
+	"true", "try", "typeid", "typename", "using", "virtual",
+	"wchar_t", "xor", "xor_eq",  /* C++ 11 */
+
+	/* cpp */
+	"#if", "#ifdef", "#ifndef",
+	"#elif", "#else", "#endif",  
+	"#define", "#defined", "#undef", 
+	"#include", "#pragma", "#line", "#error",
+
+	/* C types */
+	"int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|", "void|", 
+	NULL
 };
 
 char *Java_HL_extensions[] = { ".java", NULL };
