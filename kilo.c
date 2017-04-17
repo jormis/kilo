@@ -20,7 +20,34 @@
 
 /*** defines ***/
 
-#define KILO_VERSION "0.0.2"
+/*
+	2017-04-16 
+
+	TODO Ctrl-K Ctrl-Y cut and paste 
+	TODO M-x command
+	- save-buffer-as
+	- command line (M-x !) & pipes and *shell* buffer
+	- compile based on HL mode & working diretory: make, mvn build, ant ?
+	- Store last command argument context-sensitively
+	TODO Tab completion in prompt
+	TODO configuration file (~/.kilorc)
+	TODO modes
+	- Shell mode 
+	- Python mode
+	- auto-indent (for Python) (When starting a new line, indent it to the same level as the previous line.)
+	  - M-x auto-indent mode
+	- Javascript mode
+	- Clojure mode
+	- Forth mode
+	- Perl mode
+	- other modes 
+	TODO multiple buffers (file, command, otherwise)
+	TODO Unicode support (from ncurses?)
+	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
+
+*/
+
+#define KILO_VERSION "0.0.3"
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -47,7 +74,15 @@ enum editor_key {
 	PAGE_UP,
 	PAGE_DOWN,
 	REFRESH_KEY,
-	QUIT_KEY
+	QUIT_KEY, 
+
+	/* These are more like commands.*/
+	MARK_KEY, /* Ctrl-Space */
+	KILL_LINE_KEY, /* Ctrl-K (nano mode) */
+	DEL_TO_THE_EOL_KEY, /* Ctrl-K (emacs mode)*/
+	DEL_FROM_MARK_KEY, /* Ctrl-W */
+	COPY_TO_CLIPBOARD_KEY, /* M-w */
+	YANK_KEY /* Ctrl-Y */
 };
 
 /*
@@ -111,6 +146,32 @@ struct editor_config {
 };
 
 struct editor_config E;
+
+/**
+	row (E.row in phase 1; from E.cx' to E.cx'' in phase 2)
+	is_eol = the whole line (phase 1; also phase 2 with double Ctrl-K or C-' ' & C/M-w)
+*/
+
+typedef struct clipboard_row {
+	char *row; 
+	int size; 
+	int orig_x; /* TODO for emacs */
+	int orig_y; /* TODO for undo */
+	int is_eol; 
+} clipboard_row; 
+
+struct clipboard {
+	/* 
+		Fill clipboard with successive KILL_KEY presses. After the first non-KILL_KEY set C.is_full = 1
+	   	as not to add anything more. The clipboard contents stay & can be yanked as many times as needed, 
+	   	UNTIL the next KILL_KEY which clears clipboard and resets is_stale to 0 if it was 1. 
+	*/
+	int is_full; 
+	int numrows;
+	clipboard_row *row; 
+}; 
+
+struct clipboard C; 
 
 /*** filetypes ***/
 
@@ -779,6 +840,7 @@ editor_rows_to_string(int *buflen) {
 
 	for (j = 0; j < E.numrows; j++)
 		totlen += E.row[j].size + 1; 
+
 	*buflen = totlen; 
 
 	buf = malloc(totlen); 
@@ -978,6 +1040,97 @@ void
 ab_free(struct abuf *ab) {
 	free(ab->b);
 }
+
+/*** clipboard ***/
+
+/*
+typedef struct clipboard_row {
+	char *row; 
+	int size; 
+	int orig_x; 
+	int orig_y; 
+	int is_eol; 
+} clipboard_row; 
+
+struct clipboard {
+	int numrows;
+	clipboard_row *row; 
+}; 
+
+struct clipboard C; 
+ 
+*/
+
+/*
+E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+	memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
+	for (j = at + 1; j <= E.numrows; j++)
+		E.row[j].idx++; 
+
+	E.row[at].idx = at; 
+  	
+  	E.row[at].size = len;
+  	E.row[at].chars = malloc(len + 1);
+  	memcpy(E.row[at].chars, s, len);
+  	E.row[at].chars[len] = '\0';
+
+  	E.row[at].rsize = 0;
+  	E.row[at].render = NULL; 
+  	E.row[at].hl = NULL;
+  	E.row[at].hl_open_comment = 0; 
+
+  	editor_update_row(&E.row[at]); 
+  	
+  	E.numrows++;
+*/
+
+void
+clipboard_clear() {
+	free(C.row);
+	C.row = NULL; 
+	C.numrows = 0;
+	C.is_full = 0; 
+}
+
+void
+clipboard_add_line_to_clipboard() {
+	if (E.cy < 0 || E.cy > E.numrows)
+		return; 
+
+	if (C.is_full) {
+		clipboard_clear();
+	}
+
+	erow *row = &E.row[E.cy];	
+
+	// Append to the end.
+	C.row = realloc(C.row, sizeof(clipboard_row) * (C.numrows + 1));
+	
+	C.row[C.numrows].row = malloc(row->size);
+	memcpy(C.row[C.numrows].row, row->chars, row->size);
+	C.row[C.numrows].size = row->size;
+	C.row[C.numrows].orig_x = E.cx;
+	C.row[C.numrows].orig_y = E.cy;
+	C.row[C.numrows].is_eol = 1; 
+	C.numrows++;		
+
+	/*char msg[80];
+	sprintf(msg, "Kill lines: %d", C.numrows);*/
+
+	editor_del_row(E.cy);
+	/*editor_set_status_message(msg);*/
+}
+
+void
+clipboard_yank_lines() { 
+	int j = 0; 
+	for (j = 0; j < C.numrows; j++) {
+		editor_insert_row(E.cy++, C.row[j].row, C.row[j].size);		
+	}
+
+	editor_set_status_message("Yank lines!");
+}
+
 
 /*** output ***/
 
@@ -1286,6 +1439,7 @@ editor_move_cursor(int key) {
 void 
 editor_process_keypress() {
 	static int quit_times = KILO_QUIT_TIMES; 
+	static int previous_key = -1; 
 
 	int c = editor_read_key();
 
@@ -1293,17 +1447,27 @@ editor_process_keypress() {
 	if (c == CTRL_KEY('v'))
 		c = PAGE_DOWN;
 	else if (c == CTRL_KEY('y'))
-		c = PAGE_UP; 
+		c = YANK_KEY;
+	else if (c == CTRL_KEY('k'))
+		c = KILL_LINE_KEY; 
 	else if (c == CTRL_KEY('e'))
 		c = END_KEY; 
 	else if (c == CTRL_KEY('a'))
 		c = HOME_KEY; 
+	else if (c == CTRL_KEY('q'))
+		c = QUIT_KEY;
+
+	/* Clipboard full after the first non-KILL_LINE_KEY. */
+	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY)
+		C.is_full = 1; 
+
+	previous_key = c; 
 
 	switch (c) {
 		case '\r':
 			editor_insert_newline(); 
 			break;
-		case CTRL_KEY('q'):
+		case QUIT_KEY:
 			if (E.dirty && quit_times > 0) {
 				editor_set_status_message("WARNING!!! File has unsaved changes. "
 					"Press Ctrl-Q %d more times to quit.", quit_times);
@@ -1367,6 +1531,12 @@ editor_process_keypress() {
 		case CTRL_KEY('l'):
     	case '\x1b':
       		break;
+      	case KILL_LINE_KEY:
+      		clipboard_add_line_to_clipboard();
+      		break;
+      	case YANK_KEY:
+      		clipboard_yank_lines(); 
+      		break;
 		default:
 			editor_insert_char(c);
 			break; 
@@ -1379,13 +1549,19 @@ editor_process_keypress() {
 
 void
 init_editor() {
+	/* editor config */
 	E.cx = E.cy = E.rx = E.numrows = E.rowoff = E.coloff = E.dirty = 0;
 	E.row = NULL; 
 	E.filename = NULL; 
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0; 
 	E.syntax = NULL; 
-	E.new_file = 0; 
+	E.new_file = 0;
+
+	/* clipboard */
+	C.row = NULL; 
+	C.numrows = 0; 
+	C.is_full = 0; // !Ctrl-K after Ctrl-K => clipboard contents filled. New Ctrl-K & is_full => clipbord_clear().
 
 	if (get_window_size(&E.screenrows, &E.screencols) == -1)
 		die("get_window_size");
@@ -1397,11 +1573,12 @@ int
 main(int argc, char **argv) {
 	enable_raw_mode();
 	init_editor();
+
 	if (argc >= 2) {
 		editor_open(argv[1]);
 	}
 
-	editor_set_status_message("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+	editor_set_status_message("Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-K copy line | Ctrl-Y paste");
 
 	while (1) {
 		editor_refresh_screen();
