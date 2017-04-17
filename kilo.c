@@ -937,7 +937,9 @@ editor_save() {
         		free(buf);
         		E.dirty = 0;
         		E.is_new_file = 0;  
-        		editor_set_status_message("%d bytes written to %s", len, E.absolute_filename);
+
+        		editor_set_status_message("%d bytes written to %s", len, 
+        			E.absolute_filename ? E.absolute_filename : E.filename);
 				return;
 			}
 			editor_select_syntax_highlight(); 
