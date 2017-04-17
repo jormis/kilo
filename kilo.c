@@ -74,6 +74,9 @@ enum editor_key {
 	PAGE_DOWN,
 	REFRESH_KEY,
 	QUIT_KEY, 
+	SAVE_KEY,
+	FIND_KEY,
+	CLEAR_MODIFICATION_FLAG_COMMAND, /* note M-~ if it works. */
 
 	/* These are more like commands.*/
 	MARK_KEY, /* Ctrl-Space */
@@ -137,11 +140,14 @@ struct editor_config {
 	erow *row; 
 	int dirty; 
 	char *filename; 
+	char *absolute_filename; 
+	char *basename; 
 	char statusmsg[80];
 	time_t statusmsg_time; 
 	struct editor_syntax *syntax; 
 	struct termios orig_termios;
-	int new_file; 
+	int is_new_file; 
+	int is_banner_shown; 
 };
 
 struct editor_config E;
@@ -332,6 +338,10 @@ editor_read_key() {
 			TODO When I add more. Like <esc>F for search. */
   		if (seq[0] == 'v' || seq[0] == 'V') 
   			return PAGE_UP; 
+  		else if (seq[0] == 'c') {
+  			return CLEAR_MODIFICATION_FLAG_COMMAND; 
+  		}
+
 
   		if (read(STDIN_FILENO, &seq[1], 1) != 1) return c; //'\x1b'; /*ditto*/
 
@@ -366,17 +376,7 @@ editor_read_key() {
   				case 'F': return END_KEY;
   			}
   		} 
-  		//return '\x1b'; /* not needed? */
   	} 
-/*  TODO At some point CTRL_KEY('q') becomes QUIT; 
-	white editor_ctrl_keys(c) routine like for *esc keybindings above. 
-
-  	else if (c == 22) { 
-  		return PAGE_DOWN; 
-  	} else if (c == 25) {
-  		return PAGE_UP;
-  	}
-*/
 
   	return c;
 }
@@ -855,6 +855,16 @@ editor_rows_to_string(int *buflen) {
 	return buf; 
 }
 
+char *
+editor_basename(char *path) {
+	char *s = strrchr(path, '/');
+	if (s == NULL) {
+		return strdup(path);
+	} else {
+    	return strdup(s + 1);
+    }
+}
+
 void
 editor_open(char *filename) {
  	char *line = NULL;
@@ -863,6 +873,9 @@ editor_open(char *filename) {
   	struct stat stat_buffer; 
 
   	free(E.filename); 
+  	free(E.absolute_filename); 
+  	free(E.basename);
+
   	E.filename = strdup(filename); 
 
   	editor_select_syntax_highlight(); 
@@ -870,7 +883,7 @@ editor_open(char *filename) {
   	// TODO new file (not necessarily need be writeable)
   	if (stat(filename, &stat_buffer) == -1) {
   		if (errno == ENOENT) {
-  			E.new_file = 1; 
+  			E.is_new_file = 1; 
   			E.dirty = 0; 
   			return; 
   		} else {
@@ -878,11 +891,13 @@ editor_open(char *filename) {
   		}
   	}
 
-
  	FILE *fp = fopen(filename, "r");
   	if (!fp) {
   		die("fopen");
  	}
+
+	E.absolute_filename = realpath(filename, NULL); 
+	E.basename = editor_basename(filename);
 
   	while ((linelen = getline(&line, &linecap, fp)) != -1) {
     	if (linelen > 0 && (line[linelen - 1] == '\n' 
@@ -910,6 +925,9 @@ editor_save() {
 		}
 	}
 
+	E.absolute_filename = realpath(E.filename, NULL); 
+	E.basename = editor_basename(E.filename);
+
 	buf = editor_rows_to_string(&len);
 	fd = open(E.filename, O_RDWR | O_CREAT, 0644);
 	if (fd != -1) {
@@ -918,8 +936,8 @@ editor_save() {
         		close(fd);
         		free(buf);
         		E.dirty = 0;
-        		E.new_file = 0;  
-        		editor_set_status_message("%d bytes written to disk", len);
+        		E.is_new_file = 0;  
+        		editor_set_status_message("%d bytes written to %s", len, E.absolute_filename);
 				return;
 			}
 			editor_select_syntax_highlight(); 
@@ -1130,7 +1148,7 @@ editor_draw_rows(struct abuf *ab) {
 		filerow = y + E.rowoff; 
 
 		if (filerow >= E.numrows) {
-			if (E.numrows == 0 && y == E.screenrows / 3) {
+			if (!E.is_banner_shown && E.numrows == 0 && y == E.screenrows / 3) {
 				int padding = 0;
 	      		char welcome[80];
     	  		int welcomelen = snprintf(welcome, sizeof(welcome),
@@ -1206,15 +1224,107 @@ editor_draw_rows(struct abuf *ab) {
     }
 }
 
+#define ESC_PREFIX "\x1b["
+#define ESC_PREFIX_LEN 2
+#define APPEND_ESC_PREFIX(ab) (ab_append(ab, ESC_PREFIX, ESC_PREFIX_LEN))
+
+enum esc_codes {
+	ESC_BOLD = 1, 
+	ESC_DIM = 2, 
+	ESC_UNDERLINED = 4,
+	ESC_BLINK = 5, 
+	ESC_REVERSE = 7,
+	ESC_HIDDEN = 8, 
+	ESC_RESET_ALL = 0,
+	ESC_RESET_BOLD = 21,
+	ESC_RESET_DIM = 22,
+	ESC_RESET_UNDERLINED = 24,
+	ESC_RESET_BLINK = 25,
+	ESC_RESET_REVERSE = 27,
+	ESC_RESET_HIDDEN = 28
+};
+
+void
+esc_invert(struct abuf *ab) {
+	APPEND_ESC_PREFIX(ab);
+	ab_append(ab, "7m", 2);
+}
+
+void
+esc_bold(struct abuf *ab) {
+	APPEND_ESC_PREFIX(ab);
+	ab_append(ab, "1m", 2);
+}
+
+void
+esc_reset_all(struct abuf *ab) {
+	APPEND_ESC_PREFIX(ab);
+	ab_append(ab, "0m", 2);
+}
+
+/*
+void
+editor_draw_status_bar(struct abuf *ab) {
+	int flen = 0; 
+	int len = 0;
+	int rlen = 0;
+	char status[80], rstatus[80];
+	char f_name[80];
+
+	char *prefix = "-- "; 
+	
+	esc_invert(ab);
+	ab_append(ab, prefix, strlen(prefix));
+	esc_bold(ab);
+
+	flen = snprintf(f_name, sizeof(f_name), "%.14s", 
+		E.basename ? E.basename : "[No name]");
+	ab_append(ab, f_name, flen);
+
+	esc_reset_all(ab);
+	esc_invert(ab);
+
+	len = snprintf(status, sizeof(status), "  %s - %d lines %s>", 
+		E.is_new_file ? "(New file)" : "", 
+		E.numrows, 
+		E.dirty ? "(modified)" : ""); 
+
+	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
+		E.syntax != NULL ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
+
+	len = len + flen + strlen(prefix); 
+
+	if (len > E.screencols)
+		len = E.screencols; 
+
+	ab_append(ab, status, len); 
+
+	while (len < E.screencols) {
+		if (E.screencols - len == rlen) {
+			ab_append(ab, rstatus, rlen);
+			break; 
+		} else {
+			ab_append(ab, " ", 1);
+			len++;
+		}
+	}
+ 
+	esc_reset_all(ab);
+	
+	ab_append(ab, "\r\n", 2); 
+}
+*/
+
 void
 editor_draw_status_bar(struct abuf *ab) {
 	int len = 0;
 	int rlen = 0;
 	char status[80], rstatus[80];
 
-	ab_append(ab, "\x1b[7m", 4); 
-	len = snprintf(status, sizeof(status), "%.20s %s - %d lines %s", 
-		E.filename ? E.filename : "[No name]", E.new_file ? "[New file]" : "", E.numrows, 
+	//ab_append(ab, "\x1b[7m", 4); 
+	esc_invert(ab);
+	len = snprintf(status, sizeof(status), "-- %.16s %s - %d lines %s", 
+		E.basename ? E.basename : "[No name]", E.is_new_file ? "(New file)" : "", E.numrows, 
 		E.dirty ? "(modified)" : ""); 
 	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
 		E.syntax != NULL ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
@@ -1234,7 +1344,8 @@ editor_draw_status_bar(struct abuf *ab) {
 		}
 	}
 
-	ab_append(ab, "\x1b[m", 3); 
+	esc_reset_all(ab);
+	//ab_append(ab, "\x1b[m", 3); 
 	ab_append(ab, "\r\n", 2); 
 }
 
@@ -1394,14 +1505,8 @@ editor_move_cursor(int key) {
   	}
 }
 
-void 
-editor_process_keypress() {
-	static int quit_times = KILO_QUIT_TIMES; 
-	static int previous_key = -1; 
-
-	int c = editor_read_key();
-
-	/* Some normalisation here. FOR NOW. TODO: inside editor_read_key(). */
+int 
+editor_normalize_key(int c) {
 	if (c == CTRL_KEY('v'))
 		c = PAGE_DOWN;
 	else if (c == CTRL_KEY('y'))
@@ -1414,12 +1519,28 @@ editor_process_keypress() {
 		c = HOME_KEY; 
 	else if (c == CTRL_KEY('q'))
 		c = QUIT_KEY;
+	else if (c == CTRL_KEY('s'))
+		c = SAVE_KEY;
+	else if (c == CTRL_KEY('f'))
+		c = FIND_KEY;
+
+	return c; 
+}
+
+void 
+editor_process_keypress() {
+	static int quit_times = KILO_QUIT_TIMES; 
+	static int previous_key = -1; 
+
+	int c = editor_normalize_key(editor_read_key());
 
 	/* Clipboard full after the first non-KILL_LINE_KEY. */
 	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY)
 		C.is_full = 1; 
 
 	previous_key = c; 
+
+	E.is_banner_shown = 1; // After the first keypress, yes. 
 
 	switch (c) {
 		case '\r':
@@ -1438,7 +1559,7 @@ editor_process_keypress() {
       		write(STDOUT_FILENO, "\x1b[H", 3);
 			exit(0);
 			break;
-		case CTRL_KEY('s'):
+		case SAVE_KEY:
 			editor_save();
 			break; 
 		case HOME_KEY:
@@ -1448,11 +1569,9 @@ editor_process_keypress() {
 			if (E.cy < E.numrows)
 				E.cx = E.row[E.cy].size; 
 			break;
-
-		case CTRL_KEY('f'):
+		case FIND_KEY:
 			editor_find();
 			break; 
-
 		case BACKSPACE:
 		case CTRL_KEY('h'):
 		case DEL_KEY:
@@ -1495,6 +1614,11 @@ editor_process_keypress() {
       	case YANK_KEY:
       		clipboard_yank_lines(); 
       		break;
+
+      	case CLEAR_MODIFICATION_FLAG_COMMAND:
+      		E.dirty = 0;
+      		break;
+
 		default:
 			editor_insert_char(c);
 			break; 
@@ -1511,10 +1635,13 @@ init_editor() {
 	E.cx = E.cy = E.rx = E.numrows = E.rowoff = E.coloff = E.dirty = 0;
 	E.row = NULL; 
 	E.filename = NULL; 
+	E.absolute_filename = NULL; 
+	E.basename = NULL; 
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0; 
 	E.syntax = NULL; 
-	E.new_file = 0;
+	E.is_new_file = 0;
+	E.is_banner_shown = 0; 
 
 	/* clipboard */
 	C.row = NULL; 
