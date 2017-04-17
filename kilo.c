@@ -21,7 +21,9 @@
 /*** defines ***/
 
 /*
-	2017-04-16 
+	2017-04-17
+
+	Latest: rudimentary Pyhon mode without soft indent or auto indent done.
 
 	TODO M-x command
 	- save-buffer-as
@@ -32,7 +34,7 @@
 	TODO configuration file (~/.kilorc)
 	TODO modes
 	- Shell mode 
-	- Python mode
+	- Python mode -- need soft indent (spaces when typing tab & auto-ident)
 	- auto-indent (for Python) (When starting a new line, indent it to the same level as the previous line.)
 	  - M-x auto-indent mode
 	- Javascript mode
@@ -46,7 +48,7 @@
 
 */
 
-#define KILO_VERSION "0.0.3"
+#define KILO_VERSION "0.0.4"
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -148,6 +150,9 @@ struct editor_config {
 	struct termios orig_termios;
 	int is_new_file; 
 	int is_banner_shown; 
+	/* TODO */
+	int is_soft_indent;
+	int is_auto_indent; 
 };
 
 struct editor_config E;
@@ -245,6 +250,23 @@ char *Java_HL_keywords[] = {
 	NULL
 };
 
+char *Python_HL_extensions[] = { ".py", NULL };
+char *Python_HL_keywords[] = {
+	"False", "None", "True", 
+	"and", "as", "assert", "break", "class", "continue", "def", "del", 
+	"elif", "else", "except", "finally", "for", "from", "global", 
+	"if", "import", "in", "is", "lambda", "nonlocal", "not", "or",
+	"pass", "raise", "return", "try", "while", "with", "yield",
+
+	"int|", "float|", "complex|", "decimal|", "fraction|", 
+	"container|", "iterator|", "list|", "tuple|", "range|", 
+	"bytes|", "bytearray|", 
+	"set|", "frozenset|", 
+	"dict|", 
+
+	NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
 		"C", 
@@ -262,6 +284,16 @@ struct editor_syntax HLDB[] = {
 		"/*", "*/",
 		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
 	},
+
+	/* Python requires multiline strings, soft indent & auto indent. */
+	{
+		"Python",
+		Python_HL_extensions,
+		Python_HL_keywords,
+		"#",
+		"'''", "'''",
+		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+	}
 
 
 };
@@ -1644,6 +1676,10 @@ init_editor() {
 	E.syntax = NULL; 
 	E.is_new_file = 0;
 	E.is_banner_shown = 0; 
+
+	/* TODO */
+	E.is_soft_indent = 0;
+	E.is_auto_indent = 0;
 
 	/* clipboard */
 	C.row = NULL; 
