@@ -23,7 +23,6 @@
 /*
 	2017-04-16 
 
-	TODO Ctrl-K Ctrl-Y cut and paste 
 	TODO M-x command
 	- save-buffer-as
 	- command line (M-x !) & pipes and *shell* buffer
@@ -1042,47 +1041,6 @@ ab_free(struct abuf *ab) {
 }
 
 /*** clipboard ***/
-
-/*
-typedef struct clipboard_row {
-	char *row; 
-	int size; 
-	int orig_x; 
-	int orig_y; 
-	int is_eol; 
-} clipboard_row; 
-
-struct clipboard {
-	int numrows;
-	clipboard_row *row; 
-}; 
-
-struct clipboard C; 
- 
-*/
-
-/*
-E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
-	memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
-	for (j = at + 1; j <= E.numrows; j++)
-		E.row[j].idx++; 
-
-	E.row[at].idx = at; 
-  	
-  	E.row[at].size = len;
-  	E.row[at].chars = malloc(len + 1);
-  	memcpy(E.row[at].chars, s, len);
-  	E.row[at].chars[len] = '\0';
-
-  	E.row[at].rsize = 0;
-  	E.row[at].render = NULL; 
-  	E.row[at].hl = NULL;
-  	E.row[at].hl_open_comment = 0; 
-
-  	editor_update_row(&E.row[at]); 
-  	
-  	E.numrows++;
-*/
 
 void
 clipboard_clear() {
