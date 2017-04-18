@@ -48,7 +48,7 @@
 
 */
 
-#define KILO_VERSION "0.0.4"
+#define KILO_VERSION "0.0.5 M-x set-mode (C, Python, Java, Text)"
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
