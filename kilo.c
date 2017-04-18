@@ -48,7 +48,7 @@
 
 */
 
-#define KILO_VERSION "0.0.5 M-x set-mode (C, Python, Java, Text)"
+#define KILO_VERSION "0.0.6 M-x set-mode (C, Python, Java, Text)"
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -648,11 +648,12 @@ editor_syntax_to_colour(int hl) {
 void
 editor_select_syntax_highlight(char *mode) {
 	unsigned int j; 
+	int mode_found = 0; 
 	int filerow = 0;
 	char *p = NULL ;
 	E.syntax = NULL;
 
-	if (E.filename == NULL)
+	if (E.filename == NULL && mode == NULL)
 		return; 
 
 	for (j = 0; j < HLDB_ENTRIES; j++) {
@@ -667,6 +668,8 @@ editor_select_syntax_highlight(char *mode) {
 					for (filerow = 0; filerow < E.numrows; filerow++) {
 						editor_update_syntax(&E.row[filerow]); 
 					}
+					mode_found = 1; 
+					editor_set_status_message("Mode set to '%s'", s->filetype);
 					return; 
 				}
 			}
@@ -689,6 +692,9 @@ editor_select_syntax_highlight(char *mode) {
 			} 
 		}
 	}
+
+	if (mode != NULL && ! mode_found)
+		editor_set_status_message("Unknown mode '%s'", mode);
 }
 
 /*** row operations ***/
@@ -1030,7 +1036,7 @@ editor_command() {
 				editor_set_status_message("set-mode aborted, mode still %s", E.syntax->filetype);
 				return;
 			} else {
-				editor_set_status_message("Setting mode to: '%s'", command_parameter);
+				/* editor_set_status_message("Setting mode to: '%s'", command_parameter); */
 				editor_select_syntax_highlight(command_parameter);
 			}
 		}
@@ -1257,6 +1263,9 @@ editor_draw_rows(struct abuf *ab) {
 	      			ab_append(ab, " ", 1);
 
 	      		ab_append(ab, welcome, welcomelen);
+
+	      		// Banner.
+
 	      	} else { // / 3
 				ab_append(ab, "~", 1);
 			}
