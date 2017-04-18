@@ -86,7 +86,8 @@ enum editor_key {
 	DEL_TO_THE_EOL_KEY, /* Ctrl-K (emacs mode)*/
 	DEL_FROM_MARK_KEY, /* Ctrl-W */
 	COPY_TO_CLIPBOARD_KEY, /* M-w */
-	YANK_KEY /* Ctrl-Y */
+	YANK_KEY, /* Ctrl-Y */
+	COMMAND_KEY /* M-x */
 };
 
 /*
@@ -267,7 +268,18 @@ char *Python_HL_keywords[] = {
 	NULL
 };
 
+char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", NULL };
+char *Text_HL_keywords[] = { NULL };
+
 struct editor_syntax HLDB[] = {
+	{
+		"Text",
+		Text_HL_extensions,
+		Text_HL_keywords,
+		"#", 
+		"", "", 
+		0
+	},
 	{
 		"C", 
 		C_HL_extensions, 
@@ -368,10 +380,12 @@ editor_read_key() {
 
   		/* if (key = editor_esc_keybindings(c)) return key; 
 			TODO When I add more. Like <esc>F for search. */
-  		if (seq[0] == 'v' || seq[0] == 'V') 
+  		if (seq[0] == 'v') { 
   			return PAGE_UP; 
-  		else if (seq[0] == 'c') {
+  		} else if (seq[0] == 'c') {
   			return CLEAR_MODIFICATION_FLAG_COMMAND; 
+  		} else if (seq[0] == 'x') {
+  			return COMMAND_KEY; 
   		}
 
 
@@ -632,9 +646,10 @@ editor_syntax_to_colour(int hl) {
 }
 
 void
-editor_select_syntax_highlight() {
+editor_select_syntax_highlight(char *mode) {
 	unsigned int j; 
-
+	int filerow = 0;
+	char *p = NULL ;
 	E.syntax = NULL;
 
 	if (E.filename == NULL)
@@ -643,21 +658,35 @@ editor_select_syntax_highlight() {
 	for (j = 0; j < HLDB_ENTRIES; j++) {
 		struct editor_syntax *s = &HLDB[j];
 		unsigned int i = 0;
-		while (s->filematch[i]) {
-			int filerow; 
-			char *p = strstr(E.filename, s->filematch[i]); 
-			if (p != NULL) {
-				int patlen = strlen(s->filematch[i]); 
-				if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-					E.syntax = s; 
 
+		/* Set explicitely based on cmd line option or M-x set-command-mode (& another prompt for the mode). */
+		if (mode != NULL) {
+			if (s->filetype) {
+				if (! strcasecmp(mode, s->filetype)) {
+					E.syntax = s; 
 					for (filerow = 0; filerow < E.numrows; filerow++) {
 						editor_update_syntax(&E.row[filerow]); 
 					}
 					return; 
 				}
 			}
-			i++; 
+		} else { /* mode == NULL, set it based on the filematch. */
+
+			while (s->filematch[i]) {
+				p = strstr(E.filename, s->filematch[i]); 
+				if (p != NULL) {
+					int patlen = strlen(s->filematch[i]); 
+					if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
+						E.syntax = s; 
+
+						for (filerow = 0; filerow < E.numrows; filerow++) {
+							editor_update_syntax(&E.row[filerow]); 
+						}
+						return; 
+					}
+				}
+				i++;
+			} 
 		}
 	}
 }
@@ -910,7 +939,7 @@ editor_open(char *filename) {
 
   	E.filename = strdup(filename); 
 
-  	editor_select_syntax_highlight(); 
+  	editor_select_syntax_highlight(NULL); 
  
   	// TODO new file (not necessarily need be writeable)
   	if (stat(filename, &stat_buffer) == -1) {
@@ -974,7 +1003,7 @@ editor_save() {
         			E.absolute_filename ? E.absolute_filename : E.filename);
 				return;
 			}
-			editor_select_syntax_highlight(); 
+			editor_select_syntax_highlight(NULL); 
 		}
 		close(fd);
 	}
@@ -982,6 +1011,35 @@ editor_save() {
 	editor_set_status_message("Can't save: I/O error: %s", strerror(errno));
 }
 
+/*** M-x ***/
+void
+editor_command() {
+	char *command = NULL;
+	char *command_parameter = NULL; 
+
+	if (command == NULL) {
+		command = editor_prompt("Command: %s", NULL);
+		if (command == NULL) {
+			editor_set_status_message("M-x command aborted.");
+			return; 
+		}
+
+		if (!strcmp("set-mode", command)) {
+			command_parameter = editor_prompt("Mode: %s", NULL);
+			if (command_parameter == NULL) {
+				editor_set_status_message("set-mode aborted, mode still %s", E.syntax->filetype);
+				return;
+			} else {
+				editor_set_status_message("Setting mode to: '%s'", command_parameter);
+				editor_select_syntax_highlight(command_parameter);
+			}
+		}
+
+	}
+
+	
+
+}
 
 /*** find ***/
 
@@ -1652,6 +1710,10 @@ editor_process_keypress() {
       	case CLEAR_MODIFICATION_FLAG_COMMAND:
       		E.dirty = 0;
       		break;
+
+      	case COMMAND_KEY:
+      		editor_command();
+      		break; 
 
 		default:
 			editor_insert_char(c);
