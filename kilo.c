@@ -48,7 +48,7 @@
 
 */
 
-#define KILO_VERSION "0.0.6 M-x set-mode (C, Python, Java, Text)"
+#define KILO_VERSION "0.0.7 M-x set-mode (C, Python, Java, Text, Makefile)"
 #define KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -110,6 +110,9 @@ enum editor_highlight {
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
 #define HL_HIGHLIGHT_STRINGS (1<<1)
 
+/* Default: soft tabs. */
+#define HARD_TABS (1<<2)
+
 /*** data ***/
 struct editor_syntax {
 	char *filetype; 
@@ -118,7 +121,7 @@ struct editor_syntax {
 	char *singleline_comment_start; 
 	char *multiline_comment_start; 
 	char *multiline_comment_end; 
-	int flags; 
+	int flags; // Indent here
 }; 
 
 /* row of text */
@@ -271,6 +274,9 @@ char *Python_HL_keywords[] = {
 char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", NULL };
 char *Text_HL_keywords[] = { NULL };
 
+char *Makefile_HL_extensions[] = { "Makefile", "makefile", NULL };
+char *Makefile_HL_keywords[] = { NULL };
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -279,6 +285,14 @@ struct editor_syntax HLDB[] = {
 		"#", 
 		"", "", 
 		0
+	},
+	{
+		"Makefile",
+		Makefile_HL_extensions,
+		Makefile_HL_keywords, 
+		"#",
+		"", "", /* Comment continuation by backslash is missing. */
+		HARD_TABS
 	},
 	{
 		"C", 
