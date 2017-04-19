@@ -22,51 +22,37 @@
 /*** defines ***/
 
 /*
-	2017-04-19
+	2017-04-20
 
 	Latest: 
-	    - M-x command & params (set-mode, set-tab-stop, set-hard/soft-tabs 
-	    	(Not implemented yet -- uses mode settings))
-		- HARD_TABS as editor_syntax.flag value 
-		- set-mode, set-tabs-stop, set-auto-indent, 
-		- soft and hard tabs. (action when pressing TAB, ->, <- or BACKSPACE/DEL)		
-	Next:
-		- No highlight mode 
-		- .kilorc (tab-width) (M-x set-tab-width)
-		- M-x save-buffer-as 
-		- M-x command buffer & context-sensitive parameter buffer.
-		- M-x TAB command completion
-		- Emacs style C-K or C-SPC & C/M-W
-		- command line options (what would those be?) without getopts
-		- *Help* mode
-		- Multiple buffers
-		- *Command* or *Shell* buffer (think of REPL) 
-		- M-x compile (based on Mode & cwd contents): like Emacs (output)
+		- Auto-indent (2017-04-20)
+			- Python, Makefile: use of ':' for more proper auto-indenting
 
-	TODO M-x command
-	- save-buffer-as
-	- command line (M-x !) & pipes and *shell* buffer
-	- compile based on HL mode & working diretory: make, mvn build, ant ?
-	- Store last command argument context-sensitively
-	TODO Tab completion in prompt
-	TODO configuration file (~/.kilorc)
+	TODO .kilorc (tab-width) (M-x set-tab-width)
+	TODO M-x save-buffer-as 
+	TODO M-x command buffer & context-sensitive parameter buffer.
+	TODO- M-x TAB command completion
+	TODO store last command argument context-sensitively
+	TODO 	- Emacs style C-K or C-SPC & C/M-W
+	TODO command line options (what would those be?) without getopts
+	TODO *Help* mode
+	TODO Multiple buffers
+	TODO- *Command* or *Shell* buffer (think of REPL) 
+	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
+		- compile based on HL mode & working diretory: make, mvn build, ant ?
+	
 	TODO modes
 	- Shell mode 
-	- Python mode -- need soft indent (spaces when typing tab & auto-ident)
-	- auto-indent (for Python) (When starting a new line, indent it to the same level as the previous line.)
-	  - M-x auto-indent mode
 	- Javascript mode
 	- Clojure mode
 	- Forth mode
 	- Perl mode
 	- other modes 
-	TODO multiple buffers (file, command, otherwise)
 	TODO Unicode support (from ncurses?)
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
-
 */
 
-#define KILO_VERSION "0.1.0 --debug/-d; set soft/hard-tabs"
+#define KILO_VERSION "0.1.1 Proper autoindenting."
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -96,7 +82,7 @@ enum editor_key {
 	QUIT_KEY, 
 	SAVE_KEY,
 	FIND_KEY,
-	CLEAR_MODIFICATION_FLAG_COMMAND, /* note M-~ if it works. */
+	CLEAR_MODIFICATION_FLAG_COMMAND, /* M-c */
 
 	/* These are more like commands.*/
 	MARK_KEY, /* Ctrl-Space */
@@ -964,7 +950,7 @@ int
 editor_row_insert_char(erow *row, int at, char c) {
 	int insert_len = 0;
 	int i = 0; 
-	int old_at = at; 
+	//int old_at = at; 
 	int no_of_spaces = 0;
 
 	if (at < 0 || at > row->size) 
@@ -1075,71 +1061,84 @@ editor_insert_char(int c) {
 void
 editor_insert_newline() {
 	int i = 0;
-	int no_of_spaces_to_indent = 0;
-	int continue_iterating = 1; 
-	int pymode_last_nonspace_is_colon = 0; // generalize
+	int no_of_chars_to_indent = 0;
+	int iter = 1; 
+	char *buf;
 
 	if (E.cx == 0) {
 		editor_insert_row(E.cy, "", 0); 
-//ghghgh tämä osa ei toimi
-
-#if 0 
-		if (E.is_auto_indent && E.cy > 0) {
-			// kommentti ? 
-			// Find exactly n blocks of E.tab_stop spaces after which starts a non-space-char.
-			// Add spaces to row. Update E.cx
-			for (i = 0; continue_iterating && i < E.row[E.cy - 1].size; i++) {
-				if (E.row[E.cy - 1].chars[i] == ' ') {
-					no_of_spaces_to_indent++;
-				} else {
-					continue_iterating = 0;
-				}
-			}
-
-			continue_iterating = 1; 
-
-			/* Is the previous row of type "    something:", if so, add another soft tab. */
-			if (no_of_spaces_to_indent > 0 
-				&& no_of_spaces_to_indent % E.tab_stop == 0) {
-				if (strcasecmp(E.syntax->filetype, "Python") == 0) { /* Little extra for Python mode. */
-					for (i = E.row[E.cy - 1].size - 1; continue_iterating && i > no_of_spaces_to_indent; i--) {
-						if (E.row[E.cy - 1].chars[i] == ':') {
-							pymode_last_nonspace_is_colon = 1;
-							continue_iterating = 0;
-						} else if (E.row[E.cy - 1].chars[i] != ' ') {
-							continue_iterating = 0; /* non-SPC terminates. */
-						}
-					}	
-
-					if (pymode_last_nonspace_is_colon)
-						no_of_spaces_to_indent += E.tab_stop;
-				}
-
-
-				for (i = 0; i < no_of_spaces_to_indent; i++) {
-					editor_row_insert_char(&E.row[E.cy], 0, ' '); // 0
-				}
-			}
-
-			editor_set_status_message("cy.x=%d.%d E.isa=%d E.tab=%d no_of_spaces_to_indent=%d n_M_t=%d '%s'", 
-				E.cy+1, E.cx, E.is_soft_indent, E.tab_stop, no_of_spaces_to_indent, (no_of_spaces_to_indent % E.tab_stop), E.syntax->filetype);
-
-
-			editor_update_row(&E.row[E.cy]);
-		}
-#endif
-
+		no_of_chars_to_indent = 0; 
 	} else {
+		// E.cx != 0 (> 0) so like 
+		// def foo:<INSERT NEWLINE ie PRESS ENTER>
 		erow *row = &E.row[E.cy];
-		editor_insert_row(E.cy + 1, &row->chars[E.cx], row->size - E.cx); 
+
+		if (E.is_auto_indent) {
+			iter = 1; 
+			// Cutoff point is cursor == E.cx
+			for (i = 0; iter && i < E.cx; i++) {
+				if ((row->chars[i] == ' ' && E.is_soft_indent)	
+					|| (row->chars[i] == '\t' && !E.is_soft_indent)) {
+					no_of_chars_to_indent++;
+				} else {
+					iter = 0;
+				}
+			}
+
+			//if (no_of_chars_to_indent > 0) {
+
+			if (E.is_soft_indent
+				&& (no_of_chars_to_indent % E.tab_stop == 0)
+				&& strcasecmp(E.syntax->filetype, "Python") == 0) { /* Little extra for Python mode. */
+				iter = 1; 
+				for (i = E.cx-1; iter && i >= 0; i--) {
+					if (row->chars[i] == ':') {
+						no_of_chars_to_indent += E.tab_stop;
+						iter = 0;
+					} else if (!isspace(row->chars[i])) {
+						iter = 0; /* non-SPC terminates. */
+					}
+				}	
+			} else if (!E.is_soft_indent
+			 		&& !strcasecmp(E.syntax->filetype, "Makefile")) {
+				iter = 1; 
+				for (i = 0; iter && i < E.cx; i++) {
+					if (row->chars[i] == ':') { // target: dep
+						no_of_chars_to_indent++;
+						iter = 0;
+					} 
+				}
+			}		
+
+			/* # of new spaces + the end of row. */
+			buf = malloc(no_of_chars_to_indent + row->size - E.cx + 1);
+			if (no_of_chars_to_indent > 0) {
+				memset(buf, E.is_soft_indent ? ' ' : '\t', no_of_chars_to_indent);
+			}
+			memcpy(&buf[no_of_chars_to_indent], &row->chars[E.cx], row->size - E.cx);
+			buf[no_of_chars_to_indent + row->size - E.cx] = '\0';
+			//} 
+		} // is_auto_indent
+
+		// Last section: common to both auto-indent & not. 		
+		if (no_of_chars_to_indent) {
+			editor_insert_row(E.cy + 1, buf, strlen(buf));
+			free(buf);
+		} else {
+			editor_insert_row(E.cy + 1, &row->chars[E.cx], row->size - E.cx); 
+		}
+
+		// Update the split upper row.
+
 		row = &E.row[E.cy]; /* Reassign, because editor_insert_row() calls realloc(). */
 		row->size = E.cx; 
 		row->chars[row->size] = '\0'; 
+
 		editor_update_row(row); 
 	}
-//ghghghg hajoo
+	
 	E.cy++; 
-	E.cx = no_of_spaces_to_indent; // was: = 0 
+	E.cx = no_of_chars_to_indent; // was: = 0 
 }
 
 void
@@ -1948,8 +1947,11 @@ editor_move_cursor(int key) {
     	E.cx = rowlen;
   	}
 
-  	if (E.debug)
-  		editor_set_status_message("x.y=%d.%d / %d.%d", E.cy, E.cx, E.numrows, rowlen);
+
+/*  	if (E.debug)
+  		editor_set_status_message("x.y=%d.%d / %d.%d auto=%d soft=%d", 
+  			E.cy, E.cx, E.numrows, rowlen, E.is_auto_indent, E.is_soft_indent);
+  			*/
 }
 
 int 
