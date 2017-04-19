@@ -132,17 +132,6 @@ enum editor_highlight {
 #define HARD_TABS (1<<2)
 
 /*** data ***/
-struct editor_syntax {
-	char *filetype; 
-	char **filematch; 
-	char **keywords; 
-	char *singleline_comment_start; 
-	char *multiline_comment_start; 
-	char *multiline_comment_end; 
-	int flags; // HARD_TAB here
-	int tab_stop; 
-	int is_auto_indent; 
-}; 
 
 /* row of text */
 typedef struct erow {
@@ -178,6 +167,7 @@ struct editor_config {
 	int is_soft_indent; 
 	int is_auto_indent; 
 	int tab_stop;  
+	int debug; 
 };
 
 struct editor_config E;
@@ -207,6 +197,18 @@ struct clipboard {
 }; 
 
 struct clipboard C; 
+
+struct editor_syntax {
+	char *filetype; 
+	char **filematch; 
+	char **keywords; 
+	char *singleline_comment_start; 
+	char *multiline_comment_start; 
+	char *multiline_comment_end; 
+	int flags; // HARD_TAB here
+	int tab_stop; 
+	int is_auto_indent; 
+}; 
 
 /*** filetypes ***/
 
@@ -449,6 +451,7 @@ struct command_str COMMANDS[] = {
 void editor_set_status_message(const char *fmt, ...);
 void editor_refresh_screen();
 char *editor_prompt(char *prompt, void (*callback) (char *, int));
+void editor_move_cursor(int key);
 
 /*** terminal ***/
 
@@ -961,7 +964,7 @@ int
 editor_row_insert_char(erow *row, int at, char c) {
 	int insert_len = 0;
 	int i = 0; 
-	/* int old_at = at; //DEBUG */
+	int old_at = at; 
 	int no_of_spaces = 0;
 
 	if (at < 0 || at > row->size) 
@@ -996,8 +999,8 @@ editor_row_insert_char(erow *row, int at, char c) {
 	E.dirty++; 
 
 /*
-	editor_set_status_message("t=%d, soft=%s: '%c', %d -> %d (at mod ts = %d), insert_len = %d", 
-			E.tab_stop, (E.is_soft_indent ? "on" : "off"), c, old_at, at, 
+	editor_set_status_message("cy.cx=%d.%d t=%d, soft=%s: '%c', %d -> %d (at mod ts = %d), insert_len = %d", 
+			E.cy, at, E.tab_stop, (E.is_soft_indent ? "on" : "off"), c, old_at, at, 
 			(old_at % E.tab_stop == 0 ? E.tab_stop : old_at % E.tab_stop), insert_len);
 */
 	return insert_len;
@@ -1047,13 +1050,14 @@ editor_row_del_char(erow *row, int at) {
 	editor_update_row(row);
 	E.dirty++; 
 
-/*
-	editor_set_status_message("t=%d, soft=%s: at+q+ET=%d, at/ts=%d, at=%d -> %d, en=%d, del_len=%d", 
-			E.tab_stop, (E.is_soft_indent ? "on" : "off"), 
+
+	if (E.debug)
+		editor_set_status_message("cy.cx=%d.%d t=%d, soft=%s: at+q+ET=%d, at/ts=%d, at=%d -> %d, en=%d, del_len=%d", 
+			E.cy, at, E.tab_stop, (E.is_soft_indent ? "on" : "off"), 
 			at+1-E.tab_stop,
 			((at+1) % E.tab_stop), at, at-del_len+1, 
 			enough_spaces_to_the_left, del_len);
-*/
+
 	return del_len; 
 }
 
@@ -1070,8 +1074,61 @@ editor_insert_char(int c) {
 
 void
 editor_insert_newline() {
+	int i = 0;
+	int no_of_spaces_to_indent = 0;
+	int continue_iterating = 1; 
+	int pymode_last_nonspace_is_colon = 0; // generalize
+
 	if (E.cx == 0) {
 		editor_insert_row(E.cy, "", 0); 
+//ghghgh tämä osa ei toimi
+
+#if 0 
+		if (E.is_auto_indent && E.cy > 0) {
+			// kommentti ? 
+			// Find exactly n blocks of E.tab_stop spaces after which starts a non-space-char.
+			// Add spaces to row. Update E.cx
+			for (i = 0; continue_iterating && i < E.row[E.cy - 1].size; i++) {
+				if (E.row[E.cy - 1].chars[i] == ' ') {
+					no_of_spaces_to_indent++;
+				} else {
+					continue_iterating = 0;
+				}
+			}
+
+			continue_iterating = 1; 
+
+			/* Is the previous row of type "    something:", if so, add another soft tab. */
+			if (no_of_spaces_to_indent > 0 
+				&& no_of_spaces_to_indent % E.tab_stop == 0) {
+				if (strcasecmp(E.syntax->filetype, "Python") == 0) { /* Little extra for Python mode. */
+					for (i = E.row[E.cy - 1].size - 1; continue_iterating && i > no_of_spaces_to_indent; i--) {
+						if (E.row[E.cy - 1].chars[i] == ':') {
+							pymode_last_nonspace_is_colon = 1;
+							continue_iterating = 0;
+						} else if (E.row[E.cy - 1].chars[i] != ' ') {
+							continue_iterating = 0; /* non-SPC terminates. */
+						}
+					}	
+
+					if (pymode_last_nonspace_is_colon)
+						no_of_spaces_to_indent += E.tab_stop;
+				}
+
+
+				for (i = 0; i < no_of_spaces_to_indent; i++) {
+					editor_row_insert_char(&E.row[E.cy], 0, ' '); // 0
+				}
+			}
+
+			editor_set_status_message("cy.x=%d.%d E.isa=%d E.tab=%d no_of_spaces_to_indent=%d n_M_t=%d '%s'", 
+				E.cy+1, E.cx, E.is_soft_indent, E.tab_stop, no_of_spaces_to_indent, (no_of_spaces_to_indent % E.tab_stop), E.syntax->filetype);
+
+
+			editor_update_row(&E.row[E.cy]);
+		}
+#endif
+
 	} else {
 		erow *row = &E.row[E.cy];
 		editor_insert_row(E.cy + 1, &row->chars[E.cx], row->size - E.cx); 
@@ -1080,16 +1137,21 @@ editor_insert_newline() {
 		row->chars[row->size] = '\0'; 
 		editor_update_row(row); 
 	}
+//ghghghg hajoo
 	E.cy++; 
-	E.cx = 0; 
+	E.cx = no_of_spaces_to_indent; // was: = 0 
 }
 
 void
 editor_del_char() {
 	erow *row;
 
-	if (E.cy == E.numrows)
+	if (E.cy == E.numrows) {
+		if (E.cy > 0)
+			editor_move_cursor(ARROW_LEFT);
 		return; 
+	}
+
 	if (E.cx == 0 && E.cy == 0) 
 		return;
 
@@ -1499,7 +1561,7 @@ clipboard_clear() {
 
 void
 clipboard_add_line_to_clipboard() {
-	if (E.cy < 0 || E.cy > E.numrows)
+	if (E.cy < 0 || E.cy >= E.numrows)
 		return; 
 
 	if (C.is_full) {
@@ -1879,6 +1941,9 @@ editor_move_cursor(int key) {
   	if (E.cx > rowlen) {
     	E.cx = rowlen;
   	}
+
+  	if (E.debug)
+  		editor_set_status_message("x.y=%d.%d / %d.%d", E.cy, E.cx, E.numrows, rowlen);
 }
 
 int 
@@ -2031,6 +2096,8 @@ init_editor() {
 	E.is_soft_indent = 0;
 	E.is_auto_indent = 0;
 
+	E.debug = 0; 
+
 	/* clipboard */
 	C.row = NULL; 
 	C.numrows = 0; 
@@ -2048,7 +2115,13 @@ main(int argc, char **argv) {
 	init_editor();
 
 	if (argc >= 2) {
-		editor_open(argv[1]);
+		if (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "--debug") == 0) {
+			E.debug = 1; 
+			if (argc >= 3)
+				editor_open(argv[2]);
+		} else {
+			editor_open(argv[1]);
+		}
 	}
 
 	editor_set_status_message("Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-K copy line | Ctrl-Y paste");
