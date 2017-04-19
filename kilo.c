@@ -66,7 +66,7 @@
 
 */
 
-#define KILO_VERSION "0.0.9 soft & hard-indent"
+#define KILO_VERSION "0.1.0 --debug/-d; set soft/hard-tabs"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -1416,7 +1416,13 @@ editor_command() {
 				break;
 			}
 			case COMMAND_SET_HARD_TABS:
+				E.is_soft_indent = 0;
+				editor_set_status_message(c->success);
+				break;
 			case COMMAND_SET_SOFT_TABS:
+				E.is_soft_indent = 1;
+				editor_set_status_message(c->success);
+				break;
 			case COMMAND_SAVE_AS:
 			case COMMAND_OPEN_FILE:
 				editor_set_status_message("Not implemented yet.");
