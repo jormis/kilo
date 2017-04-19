@@ -1193,6 +1193,8 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 		return 1; // One argument 
 
 	} else if (c->command_arg_type == COMMAND_ARG_TYPE_INT) {
+		*ret_string = original_raw_string; /* For the error status message */
+
 		// convert
 		if (strlen(raw_str) > 8) {
 			raw_str[8] = '\0';
@@ -1201,7 +1203,6 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 		rc = sscanf(raw_str, "%d", &raw_int); /* strtoimax(raw_str, NULL, 10); */
 
 		if (rc == 0) { 
-			*ret_string = original_raw_string; /* For the error status message */
 			return -1; 
 		}
 
@@ -1241,9 +1242,13 @@ editor_command() {
 				int rc = editor_get_command_argument(c, &int_arg, &char_arg);
 				if (rc == 0) { // Aborted
 					editor_set_status_message("%s aborted.", c->command_str);
+					free(char_arg);
+					free(command);
 					return; 
 				} else if (rc == -1) {
 					editor_set_status_message(c->error_status, char_arg);
+					free(char_arg);
+					free(command);
 					return;
 				}
 			}
@@ -1293,6 +1298,10 @@ editor_command() {
 				break;
 			} 
 
+
+			free(char_arg);
+			free(command);
+
 			return;
 		} /* if !strncasecmp */ 
 	} /* for */
@@ -1300,6 +1309,8 @@ editor_command() {
 	if (! found) {
 		editor_set_status_message("Unknown command: '%s'");
 	}
+
+	free(command);
 }
 
 /*** find ***/
