@@ -22,15 +22,15 @@
 /*** defines ***/
 
 /*
-	2017-04-18
+	2017-04-19
 
 	Latest: 
-	    - M-x command (only set-mode so far)
-		- set-mode (Python, C, Java, Text, Makefile)
-		- HARD_TABS as editor_syntax.flag value (no function as of yet)
+	    - M-x command & params (set-mode, set-tab-stop, set-hard/soft-tabs 
+	    	(Not implemented yet -- uses mode settings))
+		- HARD_TABS as editor_syntax.flag value 
 		- set-mode, set-tabs-stop, set-auto-indent, 
+		- soft and hard tabs. (action when pressing TAB, ->, <- or BACKSPACE/DEL)		
 	Next:
-		- soft and hard tabs. (action when pressing TAB, ->, <- or BACKSPACE/DEL)
 		- No highlight mode 
 		- .kilorc (tab-width) (M-x set-tab-width)
 		- M-x save-buffer-as 
@@ -66,7 +66,7 @@
 
 */
 
-#define KILO_VERSION "0.0.8 M-x command"
+#define KILO_VERSION "0.0.9 soft & hard-indent"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -199,7 +199,7 @@ struct clipboard {
 	/* 
 		Fill clipboard with successive KILL_KEY presses. After the first non-KILL_KEY set C.is_full = 1
 	   	as not to add anything more. The clipboard contents stay & can be yanked as many times as needed, 
-	   	UNTIL the next KILL_KEY which clears clipboard and resets is_stale to 0 if it was 1. 
+	   	UNTIL the next KILL_KEY which clears clipboard and resets C.is_full to 0 if it was 1. 
 	*/
 	int is_full; 
 	int numrows;
@@ -880,7 +880,7 @@ editor_update_row(erow *row) {
 	int idx = 0;
 	int tabs = 0; 
 
-	for (j = 0; j < row->size; j++) {
+	for (j = 0; j < row->size; j++) { // There may always be tabs.
 		if (row->chars[j] == '\t') 
 			tabs++;
 	}
@@ -957,16 +957,50 @@ editor_del_row(int at) {
 }
 
 
-void
+int
 editor_row_insert_char(erow *row, int at, char c) {
+	int insert_len = 0;
+	int i = 0; 
+	/* int old_at = at; //DEBUG */
+	int no_of_spaces = 0;
+
 	if (at < 0 || at > row->size) 
 		at = row->size; 
-	row->chars = realloc(row->chars, row->size + 2); 
-	memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1); 
-	row->size++;
-	row->chars[at] = c; 
+
+	if (c == '\t' && E.is_soft_indent) {
+		/* 
+			Calculate the number of spaces until the next tab stop. 
+			Add E.tab_stop number of spaces if we are at the stop.
+		*/
+		no_of_spaces = E.tab_stop - (at % E.tab_stop);
+		if (no_of_spaces == 0)
+			no_of_spaces = E.tab_stop;
+
+		insert_len = no_of_spaces;
+		c = ' '; /* Tabs to spaces; swords to plows. */
+	} else {
+		/* Not a tab char or hard tabs set. */
+		insert_len = 1; 
+	}
+
+	row->chars = realloc(row->chars, row->size + insert_len + 1); /* plus 1 is \0 */ 
+	memmove(&row->chars[at + insert_len], &row->chars[at], row->size - at + 1); 
+
+	for (i = 0; i < insert_len; i++) {
+		row->size++;
+		row->chars[at++] = c;
+	} 
+
 	editor_update_row(row); 
+	
 	E.dirty++; 
+
+/*
+	editor_set_status_message("t=%d, soft=%s: '%c', %d -> %d (at mod ts = %d), insert_len = %d", 
+			E.tab_stop, (E.is_soft_indent ? "on" : "off"), c, old_at, at, 
+			(old_at % E.tab_stop == 0 ? E.tab_stop : old_at % E.tab_stop), insert_len);
+*/
+	return insert_len;
 }
 
 void 
@@ -979,15 +1013,48 @@ editor_row_append_string(erow *row, char *s, size_t len) {
 	E.dirty++; 
 }
 
-void
+/**
+* at = E.cx - 1
+*/
+int
 editor_row_del_char(erow *row, int at) {
-	if (at < 0 || at >= row->size)
-		return;
+	int del_len = 1; /* Default del len. */
+	int i = 0; 
+	int enough_spaces_to_the_left = 1; 
 
-	memmove(&row->chars[at], &row->chars[at + 1], row->size - at); 
-	row->size--; 
+	if (at < 0 || at >= row->size)
+		return 0;
+
+	if (E.is_soft_indent) {
+		if ((at+1) % E.tab_stop == 0) {
+			/* There has to be at least E.tab_stop spaces to the left of 'at'.
+				Note: start counting from TAB_STOP below & upwards. */
+			for (i = at + 1 - E.tab_stop; enough_spaces_to_the_left && i >= 0 && i < at; i++) {
+				if (row->chars[i] != ' ') {
+					enough_spaces_to_the_left = 0; 
+				}
+			}
+
+			if (enough_spaces_to_the_left)
+				del_len = E.tab_stop;
+		} else 
+			enough_spaces_to_the_left = 0; 
+	} 
+
+//	memmove(&row->chars[at - del_len + 1], &row->chars[at + 1], row->size - at); 
+	memmove(&row->chars[at + 1 - del_len], &row->chars[at + 1], row->size - at + 1); 
+	row->size -= del_len;
 	editor_update_row(row);
 	E.dirty++; 
+
+/*
+	editor_set_status_message("t=%d, soft=%s: at+q+ET=%d, at/ts=%d, at=%d -> %d, en=%d, del_len=%d", 
+			E.tab_stop, (E.is_soft_indent ? "on" : "off"), 
+			at+1-E.tab_stop,
+			((at+1) % E.tab_stop), at, at-del_len+1, 
+			enough_spaces_to_the_left, del_len);
+*/
+	return del_len; 
 }
 
 /*** editor operations ***/
@@ -997,8 +1064,8 @@ editor_insert_char(int c) {
 		editor_insert_row(E.numrows, "", 0); 
 	}
 
-	editor_row_insert_char(&E.row[E.cy], E.cx, c); 
-	E.cx++; 
+	/* If soft_indent, we may insert more than one character. */
+	E.cx += editor_row_insert_char(&E.row[E.cy], E.cx, c);  
 }
 
 void
@@ -1028,8 +1095,7 @@ editor_del_char() {
 
 	row = &E.row[E.cy];
 	if (E.cx > 0) {
-		editor_row_del_char(row, E.cx - 1);
-		E.cx--; 
+		E.cx -= editor_row_del_char(row, E.cx - 1);
 	} else {
 		E.cx = E.row[E.cy - 1].size; 
 		editor_row_append_string(&E.row[E.cy - 1], row->chars, row->size); 
@@ -1298,10 +1364,8 @@ editor_command() {
 				break;
 			} 
 
-
 			free(char_arg);
 			free(command);
-
 			return;
 		} /* if !strncasecmp */ 
 	} /* for */
@@ -1311,6 +1375,7 @@ editor_command() {
 	}
 
 	free(command);
+	return;
 }
 
 /*** find ***/
@@ -1454,11 +1519,7 @@ clipboard_add_line_to_clipboard() {
 	C.row[C.numrows].is_eol = 1; 
 	C.numrows++;		
 
-	/*char msg[80];
-	sprintf(msg, "Kill lines: %d", C.numrows);*/
-
 	editor_del_row(E.cy);
-	/*editor_set_status_message(msg);*/
 }
 
 void
