@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -21,9 +22,26 @@
 /*** defines ***/
 
 /*
-	2017-04-17
+	2017-04-18
 
-	Latest: rudimentary Pyhon mode without soft indent or auto indent done.
+	Latest: 
+	    - M-x command (only set-mode so far)
+		- set-mode (Python, C, Java, Text, Makefile)
+		- HARD_TABS as editor_syntax.flag value (no function as of yet)
+		- set-mode, set-tabs-stop, set-auto-indent, 
+	Next:
+		- soft and hard tabs. (action when pressing TAB, ->, <- or BACKSPACE/DEL)
+		- No highlight mode 
+		- .kilorc (tab-width) (M-x set-tab-width)
+		- M-x save-buffer-as 
+		- M-x command buffer & context-sensitive parameter buffer.
+		- M-x TAB command completion
+		- Emacs style C-K or C-SPC & C/M-W
+		- command line options (what would those be?) without getopts
+		- *Help* mode
+		- Multiple buffers
+		- *Command* or *Shell* buffer (think of REPL) 
+		- M-x compile (based on Mode & cwd contents): like Emacs (output)
 
 	TODO M-x command
 	- save-buffer-as
@@ -48,8 +66,8 @@
 
 */
 
-#define KILO_VERSION "0.0.7 M-x set-mode (C, Python, Java, Text, Makefile)"
-#define KILO_TAB_STOP 8
+#define KILO_VERSION "0.0.8 M-x command"
+#define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
 /**
@@ -121,7 +139,9 @@ struct editor_syntax {
 	char *singleline_comment_start; 
 	char *multiline_comment_start; 
 	char *multiline_comment_end; 
-	int flags; // Indent here
+	int flags; // HARD_TAB here
+	int tab_stop; 
+	int is_auto_indent; 
 }; 
 
 /* row of text */
@@ -153,10 +173,11 @@ struct editor_config {
 	struct editor_syntax *syntax; 
 	struct termios orig_termios;
 	int is_new_file; 
-	int is_banner_shown; 
+	int is_banner_shown; /* If shown once do not show again. */
 	/* TODO */
-	int is_soft_indent;
+	int is_soft_indent; 
 	int is_auto_indent; 
+	int tab_stop;  
 };
 
 struct editor_config E;
@@ -284,7 +305,9 @@ struct editor_syntax HLDB[] = {
 		Text_HL_keywords,
 		"#", 
 		"", "", 
-		0
+		HARD_TABS,
+		DEFAULT_KILO_TAB_STOP, /* tab stop */
+		0  /* auto */
 	},
 	{
 		"Makefile",
@@ -292,7 +315,9 @@ struct editor_syntax HLDB[] = {
 		Makefile_HL_keywords, 
 		"#",
 		"", "", /* Comment continuation by backslash is missing. */
-		HARD_TABS
+		HARD_TABS,
+		DEFAULT_KILO_TAB_STOP,
+		1 /* auto indent */
 	},
 	{
 		"C", 
@@ -300,7 +325,9 @@ struct editor_syntax HLDB[] = {
 		C_HL_keywords,
 		"//", 
 		"/*", "*/",
-		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		DEFAULT_KILO_TAB_STOP,
+		1, /* auto indent */
 	},
 	{
 		"Java", 
@@ -308,7 +335,9 @@ struct editor_syntax HLDB[] = {
 		Java_HL_keywords,
 		"//", 
 		"/*", "*/",
-		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		4,
+		1
 	},
 
 	/* Python requires multiline strings, soft indent & auto indent. */
@@ -318,13 +347,102 @@ struct editor_syntax HLDB[] = {
 		Python_HL_keywords,
 		"#",
 		"'''", "'''",
-		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		4,
+		1
 	}
-
-
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
+
+enum command_key {
+	COMMAND_SET_MODE = 1,
+	COMMAND_SET_TAB_STOP,
+	COMMAND_SET_SOFT_TABS,
+	COMMAND_SET_HARD_TABS,
+	COMMAND_SET_AUTO_INDENT,
+	COMMAND_SAVE_AS,
+	COMMAND_OPEN_FILE
+};
+
+enum command_arg_type {
+	COMMAND_ARG_TYPE_NONE = 0,
+	COMMAND_ARG_TYPE_INT,
+	COMMAND_ARG_TYPE_STRING
+};
+
+struct command_str {
+	int command_key;
+	char *command_str;
+	int command_arg_type;
+	char *prompt; 
+	char *success;
+	char *error_status;
+};
+
+
+/* M-x "command-str" <ENTER> followed by an optional argument (INT or STRING). */ 
+struct command_str COMMANDS[] = {
+	{
+		COMMAND_SET_MODE,
+		"set-mode",
+		COMMAND_ARG_TYPE_STRING,
+		"Mode: %s",
+		"Mode set to: '%s'",
+		"Failed to set mode to '%s'"
+	},
+	{
+		COMMAND_SET_TAB_STOP,
+		"set-tab-stop",
+		COMMAND_ARG_TYPE_INT,
+		"Set tab stop to: %s", // always %s
+		"Tab stop set to: %d", // based on ARG_TYPE: %d or %s
+		"Invalid tab stop value: '%s' (range 2-)"
+
+	},
+	{
+		COMMAND_SET_SOFT_TABS,
+		"set-soft-tabs",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"Soft tabs in use.",
+		NULL,
+	},
+	{
+		COMMAND_SET_HARD_TABS,
+		"set-hard-tabs",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"Hard tabs in use",
+		NULL
+	},
+	{
+		COMMAND_SET_AUTO_INDENT,
+		"set-auto-indent",
+		COMMAND_ARG_TYPE_STRING,
+		"Set auto indent on or off: %s",
+		"Auto indent in use.",
+		"Invalid auto indent mode: '%s'"
+	},
+	{
+		COMMAND_SAVE_AS,
+		"save-buffer-as",
+		COMMAND_ARG_TYPE_STRING,
+		"Save buffer as: %s",
+		"Buffer saved successfully to %s",
+		"Failed to save buffer as '%s'"
+	},
+	{
+		COMMAND_OPEN_FILE,
+		"open-file",
+		COMMAND_ARG_TYPE_STRING,
+		"File to open: %s",
+		"Opened %s",
+		"Failed to open '%s'"
+	}
+};
+
+#define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
 
 /*** prototypes ***/
 
@@ -659,16 +777,29 @@ editor_syntax_to_colour(int hl) {
 	}
 }
 
-void
+void 
+editor_set_syntax(struct editor_syntax *syntax) {
+	int filerow; 
+
+	E.syntax = syntax; 
+	E.tab_stop = E.syntax->tab_stop;
+	E.is_soft_indent = ! (E.syntax->flags & HARD_TABS); 
+	E.is_auto_indent = E.syntax->is_auto_indent;
+
+	for (filerow = 0; filerow < E.numrows; filerow++) {
+		editor_update_syntax(&E.row[filerow]); 
+	}
+}
+
+int
 editor_select_syntax_highlight(char *mode) {
 	unsigned int j; 
 	int mode_found = 0; 
-	int filerow = 0;
 	char *p = NULL ;
 	E.syntax = NULL;
 
 	if (E.filename == NULL && mode == NULL)
-		return; 
+		return 0;  
 
 	for (j = 0; j < HLDB_ENTRIES; j++) {
 		struct editor_syntax *s = &HLDB[j];
@@ -678,13 +809,11 @@ editor_select_syntax_highlight(char *mode) {
 		if (mode != NULL) {
 			if (s->filetype) {
 				if (! strcasecmp(mode, s->filetype)) {
-					E.syntax = s; 
-					for (filerow = 0; filerow < E.numrows; filerow++) {
-						editor_update_syntax(&E.row[filerow]); 
-					}
+					editor_set_syntax(s);
+
 					mode_found = 1; 
 					editor_set_status_message("Mode set to '%s'", s->filetype);
-					return; 
+					return 0; 
 				}
 			}
 		} else { /* mode == NULL, set it based on the filematch. */
@@ -694,12 +823,8 @@ editor_select_syntax_highlight(char *mode) {
 				if (p != NULL) {
 					int patlen = strlen(s->filematch[i]); 
 					if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-						E.syntax = s; 
-
-						for (filerow = 0; filerow < E.numrows; filerow++) {
-							editor_update_syntax(&E.row[filerow]); 
-						}
-						return; 
+						editor_set_syntax(s);
+						return 0; 
 					}
 				}
 				i++;
@@ -707,8 +832,12 @@ editor_select_syntax_highlight(char *mode) {
 		}
 	}
 
-	if (mode != NULL && ! mode_found)
+	if (mode != NULL && ! mode_found) {
 		editor_set_status_message("Unknown mode '%s'", mode);
+		return -1; 
+	}
+
+	return 0; 
 }
 
 /*** row operations ***/
@@ -720,7 +849,7 @@ editor_row_cx_to_rx(erow *row, int cx) {
 
 	for (j = 0; j < cx; j++) {
 		if (row->chars[j] == '\t') 
-			rx += (KILO_TAB_STOP - 1) - (rx % KILO_TAB_STOP);
+			rx += (E.tab_stop - 1) - (rx % E.tab_stop);
 		rx++; 
 	}
 	return rx; 
@@ -733,7 +862,7 @@ editor_row_rx_to_cx(erow *row, int rx) {
 
 	for (cx = 0; cx < row->size; cx++) {
 		if (row->chars[cx] == '\t')
-			cur_rx = (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
+			cur_rx = (E.tab_stop - 1) - (cur_rx % E.tab_stop);
 
 		cur_rx++; 
 
@@ -757,12 +886,12 @@ editor_update_row(erow *row) {
 	}
 
 	free(row->render); 
-	row->render = malloc(row->size + tabs * (KILO_TAB_STOP - 1) + 1);
+	row->render = malloc(row->size + tabs * (E.tab_stop - 1) + 1);
 
 	for (j = 0; j < row->size; j++) {
 		if (row->chars[j] == '\t') {
 			row->render[idx++] = ' ';
-			while (idx % KILO_TAB_STOP != 0) 
+			while (idx % E.tab_stop != 0) 
 				row->render[idx++] = ' ';
 		} else {
 			row->render[idx++] = row->chars[j];
@@ -1031,34 +1160,146 @@ editor_save() {
 	editor_set_status_message("Can't save: I/O error: %s", strerror(errno));
 }
 
-/*** M-x ***/
+
+
+
+/*** M-x command ***/
+
+/**
+  Return:
+  0 = no argument gotten
+  1 = one argument gotten.
+  -1 = argument conversion error. 
+ */ 
+int
+editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_string) {
+	char *raw_str = NULL;
+	char *original_raw_string = NULL; 
+	int raw_int = 0;
+	int rc; 
+
+	if (c == NULL)
+		return 0; 
+
+	/* FIXME now assume existence of %s in c->prompt. */
+	raw_str = editor_prompt(c->prompt, NULL);
+	if (raw_str == NULL)
+		return 0; /* Aborted. */
+
+	original_raw_string = strdup(raw_str); 
+
+	if (c->command_arg_type == COMMAND_ARG_TYPE_STRING) {
+		*ret_string = raw_str; 
+		return 1; // One argument 
+
+	} else if (c->command_arg_type == COMMAND_ARG_TYPE_INT) {
+		// convert
+		if (strlen(raw_str) > 8) {
+			raw_str[8] = '\0';
+		}
+
+		rc = sscanf(raw_str, "%d", &raw_int); /* strtoimax(raw_str, NULL, 10); */
+
+		if (rc == 0) { 
+			*ret_string = original_raw_string; /* For the error status message */
+			return -1; 
+		}
+
+		*ret_int = raw_int;
+		return 1; 
+	}
+
+	return 0; 
+}
+
+
 void
 editor_command() {
 	char *command = NULL;
-	char *command_parameter = NULL; 
+	//char *argument = NULL; 
+	unsigned int i = 0;
+	int int_arg = 0;
+	char *char_arg = NULL;
+	int found = 0; 
 
+	command = editor_prompt("Command: %s", NULL);
 	if (command == NULL) {
-		command = editor_prompt("Command: %s", NULL);
-		if (command == NULL) {
-			editor_set_status_message("M-x command aborted.");
-			return; 
-		}
-
-		if (!strcmp("set-mode", command)) {
-			command_parameter = editor_prompt("Mode: %s", NULL);
-			if (command_parameter == NULL) {
-				editor_set_status_message("set-mode aborted, mode still %s", E.syntax->filetype);
-				return;
-			} else {
-				/* editor_set_status_message("Setting mode to: '%s'", command_parameter); */
-				editor_select_syntax_highlight(command_parameter);
-			}
-		}
-
+		editor_set_status_message("M-x command aborted.");
+		return; 
 	}
 
-	
+	for (i = 0; i < COMMAND_ENTRIES; i++) {
+		struct command_str *c = &COMMANDS[i];
 
+		if (!strncmp(c->command_str, command, strlen(c->command_str))) {
+			found = 1; 
+			if (c->command_arg_type == COMMAND_ARG_TYPE_INT 
+				|| c->command_arg_type == COMMAND_ARG_TYPE_STRING) {
+				/* should do union. */
+
+				// rc=1 is good: it's the number of successfully parsed arguments.
+				int rc = editor_get_command_argument(c, &int_arg, &char_arg);
+				if (rc == 0) { // Aborted
+					editor_set_status_message("%s aborted.", c->command_str);
+					return; 
+				} else if (rc == -1) {
+					editor_set_status_message(c->error_status, char_arg);
+					return;
+				}
+			}
+
+			// all arg types.
+			switch (c->command_key) {
+			case COMMAND_SET_MODE:
+				if (editor_select_syntax_highlight(char_arg) == 0) { 
+					editor_set_status_message(c->success, char_arg);
+				} else {
+					editor_set_status_message(c->error_status, char_arg);
+				}
+				break;
+			case COMMAND_SET_TAB_STOP:
+				if (int_arg >= 2) { 
+					E.tab_stop = int_arg; 
+					editor_set_status_message(c->success, int_arg);
+				} else {
+					editor_set_status_message(c->error_status, char_arg);
+				}
+				break;
+			case COMMAND_SET_AUTO_INDENT: {
+				int auto_indent_set = 0;
+				if (!strcasecmp(char_arg, "on") 
+					|| !strcasecmp(char_arg, "t") || !strcasecmp(char_arg, "true")) {
+					E.is_auto_indent = 1;
+					auto_indent_set = 1;
+				} else if (!strcasecmp(char_arg, "off") 
+					|| !!strcasecmp(char_arg, "f") || strcasecmp(char_arg, "false")) {
+					E.is_auto_indent = 0;
+					auto_indent_set = 1;
+				}
+				if (auto_indent_set)
+					editor_set_status_message(c->success);
+				else
+					editor_set_status_message(c->error_status, char_arg);
+				break;
+			}
+			case COMMAND_SET_HARD_TABS:
+			case COMMAND_SET_SOFT_TABS:
+			case COMMAND_SAVE_AS:
+			case COMMAND_OPEN_FILE:
+				editor_set_status_message("Not implemented yet.");
+				break;				
+			default:
+				editor_set_status_message("Got command: '%s'", c->command_str);
+				break;
+			} 
+
+			return;
+		} /* if !strncasecmp */ 
+	} /* for */
+
+	if (! found) {
+		editor_set_status_message("Unknown command: '%s'");
+	}
 }
 
 /*** find ***/
@@ -1377,58 +1618,6 @@ esc_reset_all(struct abuf *ab) {
 	ab_append(ab, "0m", 2);
 }
 
-/*
-void
-editor_draw_status_bar(struct abuf *ab) {
-	int flen = 0; 
-	int len = 0;
-	int rlen = 0;
-	char status[80], rstatus[80];
-	char f_name[80];
-
-	char *prefix = "-- "; 
-	
-	esc_invert(ab);
-	ab_append(ab, prefix, strlen(prefix));
-	esc_bold(ab);
-
-	flen = snprintf(f_name, sizeof(f_name), "%.14s", 
-		E.basename ? E.basename : "[No name]");
-	ab_append(ab, f_name, flen);
-
-	esc_reset_all(ab);
-	esc_invert(ab);
-
-	len = snprintf(status, sizeof(status), "  %s - %d lines %s>", 
-		E.is_new_file ? "(New file)" : "", 
-		E.numrows, 
-		E.dirty ? "(modified)" : ""); 
-
-	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
-		E.syntax != NULL ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
-
-	len = len + flen + strlen(prefix); 
-
-	if (len > E.screencols)
-		len = E.screencols; 
-
-	ab_append(ab, status, len); 
-
-	while (len < E.screencols) {
-		if (E.screencols - len == rlen) {
-			ab_append(ab, rstatus, rlen);
-			break; 
-		} else {
-			ab_append(ab, " ", 1);
-			len++;
-		}
-	}
- 
-	esc_reset_all(ab);
-	
-	ab_append(ab, "\r\n", 2); 
-}
-*/
 
 void
 editor_draw_status_bar(struct abuf *ab) {
@@ -1731,7 +1920,10 @@ editor_process_keypress() {
       		break;
 
       	case CLEAR_MODIFICATION_FLAG_COMMAND:
-      		E.dirty = 0;
+      		if (E.dirty) {
+      			editor_set_status_message("Modification flag cleared.");
+      			E.dirty = 0;
+      		}
       		break;
 
       	case COMMAND_KEY:
@@ -1761,6 +1953,7 @@ init_editor() {
 	E.syntax = NULL; 
 	E.is_new_file = 0;
 	E.is_banner_shown = 0; 
+	E.tab_stop = DEFAULT_KILO_TAB_STOP;
 
 	/* TODO */
 	E.is_soft_indent = 0;
