@@ -22,9 +22,10 @@
 /*** defines ***/
 
 /*
-	2017-04-20
+	2017-04-23
 
 	Latest: 
+		- Work towards making every action a command: now M-x move-cursor-up|down|right|lef works.
 		- Auto-indent (2017-04-20)
 			- Python, Makefile: use of ':' for more proper auto-indenting
 
@@ -343,14 +344,26 @@ struct editor_syntax HLDB[] = {
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
+/**
+* Everything is a command. 
+*/
 enum command_key {
 	COMMAND_SET_MODE = 1,
 	COMMAND_SET_TAB_STOP,
 	COMMAND_SET_SOFT_TABS,
 	COMMAND_SET_HARD_TABS,
 	COMMAND_SET_AUTO_INDENT,
-	COMMAND_SAVE_AS,
-	COMMAND_OPEN_FILE
+	COMMAND_SAVE_BUFFER, 
+	COMMAND_SAVE_BUFFER_AS,   // TODO
+	COMMAND_OPEN_FILE, // TODO
+	COMMAND_MOVE_CURSOR_UP,
+	COMMAND_MOVE_CURSOR_DOWN,
+	COMMAND_MOVE_CURSOR_LEFT,
+	COMMAND_MOVE_CURSOR_RIGHT,
+	COMMAND_MOVE_TO_START_OF_LINE,
+	COMMAND_MOVE_TO_END_OF_LINE,
+	COMMAND_KILL_LINE,
+	COMMAND_YANK_CLIPBOARD
 };
 
 enum command_arg_type {
@@ -413,21 +426,77 @@ struct command_str COMMANDS[] = {
 		"Invalid auto indent mode: '%s'"
 	},
 	{
-		COMMAND_SAVE_AS,
+		COMMAND_SAVE_BUFFER,
+		"save-buffer",
+		COMMAND_ARG_TYPE_STRING, /* Prompt for new file only. */
+		"Save buffer as: %s",
+		"%d bytes written successfully to %s", // Special handling: %d and %s
+		"Can't save, I/O error: %s" // %s = error
+	},
+	{
+		COMMAND_SAVE_BUFFER_AS,
 		"save-buffer-as",
 		COMMAND_ARG_TYPE_STRING,
 		"Save buffer as: %s",
-		"Buffer saved successfully to %s",
-		"Failed to save buffer as '%s'"
+		"%d bytes written successfully to %s", // Special handling: %d and %s
+		"Can't save, I/O error: %s" // %s = error
 	},
-	{
+	{ // TODO
 		COMMAND_OPEN_FILE,
 		"open-file",
 		COMMAND_ARG_TYPE_STRING,
 		"File to open: %s",
 		"Opened %s",
 		"Failed to open '%s'"
-	}
+	},
+	{
+		COMMAND_MOVE_CURSOR_UP,
+		"move-cursor-up",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
+	{
+		COMMAND_MOVE_CURSOR_DOWN,
+		"move-cursor-down",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
+	{
+		COMMAND_MOVE_CURSOR_LEFT,
+		"move-cursor-left",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
+	{
+		COMMAND_MOVE_CURSOR_RIGHT,
+		"move-cursor-left",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
+	{
+		COMMAND_KILL_LINE,
+		"kill-line",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
+	{
+		COMMAND_YANK_CLIPBOARD,
+		"yank",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	},
 };
 
 #define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
@@ -1030,19 +1099,10 @@ editor_row_del_char(erow *row, int at) {
 			enough_spaces_to_the_left = 0; 
 	} 
 
-//	memmove(&row->chars[at - del_len + 1], &row->chars[at + 1], row->size - at); 
 	memmove(&row->chars[at + 1 - del_len], &row->chars[at + 1], row->size - at + 1); 
 	row->size -= del_len;
 	editor_update_row(row);
 	E.dirty++; 
-
-
-	if (E.debug)
-		editor_set_status_message("cy.cx=%d.%d t=%d, soft=%s: at+q+ET=%d, at/ts=%d, at=%d -> %d, en=%d, del_len=%d", 
-			E.cy, at, E.tab_stop, (E.is_soft_indent ? "on" : "off"), 
-			at+1-E.tab_stop,
-			((at+1) % E.tab_stop), at, at-del_len+1, 
-			enough_spaces_to_the_left, del_len);
 
 	return del_len; 
 }
@@ -1084,8 +1144,6 @@ editor_insert_newline() {
 					iter = 0;
 				}
 			}
-
-			//if (no_of_chars_to_indent > 0) {
 
 			if (E.is_soft_indent
 				&& (no_of_chars_to_indent % E.tab_stop == 0)
@@ -1129,7 +1187,6 @@ editor_insert_newline() {
 		}
 
 		// Update the split upper row.
-
 		row = &E.row[E.cy]; /* Reassign, because editor_insert_row() calls realloc(). */
 		row->size = E.cx; 
 		row->chars[row->size] = '\0'; 
@@ -1248,16 +1305,25 @@ editor_open(char *filename) {
 	E.dirty = 0; 
 }
 
+/**
+ *  rc = 0 OK
+ * rc = -1 error
+ * rc = 1 aborted
+ */
 void
-editor_save() {
+editor_save(int command_key, char *prompt, char *success, char *error_status) {
 	int len; 
 	char *buf; 
 	int fd; 
 
-	if (E.filename == NULL) {
-		E.filename = editor_prompt("Save as: %s", NULL);
-		if (E.filename == NULL) {
-			editor_set_status_message("Save aborted");
+	if (command_key == COMMAND_SAVE_BUFFER_AS || E.filename == NULL) {
+
+		char *tmp = editor_prompt(prompt, NULL); //"Save as: %s", NULL);
+		if (tmp != NULL) {
+			free(E.filename);
+			E.filename = tmp; 
+		} else {
+			editor_set_status_message("Save aborted"); // TODO ABORT message in conf.
 			return; 
 		}
 	}
@@ -1275,8 +1341,8 @@ editor_save() {
         		E.dirty = 0;
         		E.is_new_file = 0;  
 
-        		editor_set_status_message("%d bytes written to %s", len, 
-        			E.absolute_filename ? E.absolute_filename : E.filename);
+        		editor_set_status_message(success, // TODO Special case: both %d and %s
+        			len, E.absolute_filename ? E.absolute_filename : E.filename);
 				return;
 			}
 			editor_select_syntax_highlight(NULL); 
@@ -1284,7 +1350,10 @@ editor_save() {
 		close(fd);
 	}
 	free(buf);
-	editor_set_status_message("Can't save: I/O error: %s", strerror(errno));
+
+	//editor_set_status_message("Can't save: I/O error: %s", strerror(errno));
+	editor_set_status_message(error_status, strerror(errno));
+	return; 
 }
 
 
@@ -1340,6 +1409,26 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 	return 0; 
 }
 
+void
+command_move_cursor(int command_key, char *prompt, char *success, char *error_status) {
+	switch(command_key) {
+	case COMMAND_MOVE_CURSOR_UP:
+		editor_move_cursor(ARROW_UP);
+		break;
+	case COMMAND_MOVE_CURSOR_DOWN:
+		editor_move_cursor(ARROW_DOWN);
+		break;
+	case COMMAND_MOVE_CURSOR_LEFT:
+		editor_move_cursor(ARROW_LEFT);
+		break;
+	case COMMAND_MOVE_CURSOR_RIGHT:
+		editor_move_cursor(ARROW_RIGHT);
+		break;
+	default:
+		break;		
+	}
+}
+	
 
 void
 editor_command() {
@@ -1422,9 +1511,18 @@ editor_command() {
 				E.is_soft_indent = 1;
 				editor_set_status_message(c->success);
 				break;
-			case COMMAND_SAVE_AS:
+			case COMMAND_SAVE_BUFFER:
+			case COMMAND_SAVE_BUFFER_AS:
+				editor_save(c->command_key, c->prompt, c->success, c->error_status);
+				break;
 			case COMMAND_OPEN_FILE:
 				editor_set_status_message("Not implemented yet.");
+				break;
+			case COMMAND_MOVE_CURSOR_UP:
+			case COMMAND_MOVE_CURSOR_DOWN:
+			case COMMAND_MOVE_CURSOR_LEFT:
+			case COMMAND_MOVE_CURSOR_RIGHT:
+				command_move_cursor(c->command_key, NULL, NULL, NULL); // away (ref. helper f.)
 				break;				
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
@@ -2009,7 +2107,8 @@ editor_process_keypress() {
 			exit(0);
 			break;
 		case SAVE_KEY:
-			editor_save();
+			editor_save(COMMAND_SAVE_BUFFER, 
+				"Save buffer as: %s", "%d bytes written successfully to %s", "Can't save: I/O error: %s");
 			break; 
 		case HOME_KEY:
 			E.cx = 0;
@@ -2049,10 +2148,16 @@ editor_process_keypress() {
 			break;
 		}
 		case ARROW_UP:
+			command_move_cursor(COMMAND_MOVE_CURSOR_UP, NULL, NULL, NULL);
+			break;
 		case ARROW_LEFT:
+			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT, NULL, NULL, NULL);
+			break;
 		case ARROW_RIGHT:
+			command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT, NULL, NULL, NULL);
+			break;
 		case ARROW_DOWN:
-			editor_move_cursor(c);
+			command_move_cursor(COMMAND_MOVE_CURSOR_DOWN, NULL, NULL, NULL);
 			break;
 		case CTRL_KEY('l'):
     	case '\x1b':
