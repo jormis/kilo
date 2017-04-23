@@ -53,7 +53,7 @@
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.1 Proper autoindenting."
+#define KILO_VERSION "0.1.2 Erlang mode"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 
@@ -287,6 +287,17 @@ char *Text_HL_keywords[] = { NULL };
 char *Makefile_HL_extensions[] = { "Makefile", "makefile", NULL };
 char *Makefile_HL_keywords[] = { NULL };
 
+char *Erlang_HL_extensions[] = { ".erl", NULL };
+char *Erlang_HL_keywords[] = {
+        "after", "and", "andalso", "band", "begin", "bnot", "bor", 
+        "bsl", "bsr", "bxor", "case", "catch", "cond", "div", "end",
+        "fun", "if", "let", "not", "of", "or", "orelse", "receive",
+        "rem", "try", "when", "xor", 
+        "->", // can do? 
+        "-module", "-export", "-import",
+        NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -328,8 +339,6 @@ struct editor_syntax HLDB[] = {
 		4,
 		1
 	},
-
-	/* Python requires multiline strings, soft indent & auto indent. */
 	{
 		"Python",
 		Python_HL_extensions,
@@ -339,7 +348,18 @@ struct editor_syntax HLDB[] = {
 		HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
 		4,
 		1
-	}
+	},
+        {
+                "Erlang",
+                Erlang_HL_extensions, 
+                Erlang_HL_keywords,
+                "%",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1 // TODO make bitfield?
+        }
+        
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -1146,17 +1166,29 @@ editor_insert_newline() {
 			}
 
 			if (E.is_soft_indent
-				&& (no_of_chars_to_indent % E.tab_stop == 0)
-				&& strcasecmp(E.syntax->filetype, "Python") == 0) { /* Little extra for Python mode. */
-				iter = 1; 
-				for (i = E.cx-1; iter && i >= 0; i--) {
-					if (row->chars[i] == ':' || row->chars[i] == '\\') {
-						no_of_chars_to_indent += E.tab_stop;
-						iter = 0;
-					} else if (!isspace(row->chars[i])) {
-						iter = 0; /* non-SPC terminates. */
+				&& (no_of_chars_to_indent % E.tab_stop == 0)) {
+
+				if (!strcasecmp(E.syntax->filetype, "Python")) { /* Little extra for Python mode. */
+					iter = 1; 
+					for (i = E.cx-1; iter && i >= 0; i--) {
+						if (row->chars[i] == ':' || row->chars[i] == '\\') { // : or '\\'' 
+							no_of_chars_to_indent += E.tab_stop;
+							iter = 0;
+						} else if (!isspace(row->chars[i])) {
+							iter = 0; /* non-SPC terminates. */
+						}
 					}
-				}	
+				} else if (!strcasecmp(E.syntax->filetype, "Erlang")) {
+					iter = 1; 
+					for (i = E.cx-1; iter && i >= 1; i--) { // NB: i >= 1
+						if (row->chars[i-1] == '-' || row->chars[i] == '>') { // ->
+							no_of_chars_to_indent += E.tab_stop;
+							iter = 0;
+						} else if (!isspace(row->chars[i])) {
+							iter = 0; /* non-SPC terminates. */
+						}
+					}				
+				}
 			} else if (!E.is_soft_indent
 			 		&& !strcasecmp(E.syntax->filetype, "Makefile")) {
 				iter = 1; 
@@ -1166,7 +1198,7 @@ editor_insert_newline() {
 						iter = 0;
 					} 
 				}
-			}		
+			}
 
 			/* # of new spaces + the end of row. */
 			buf = malloc(no_of_chars_to_indent + row->size - E.cx + 1);
