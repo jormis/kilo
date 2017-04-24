@@ -128,7 +128,8 @@ enum editor_key {
 	DEL_FROM_MARK_KEY, /* Ctrl-W */
 	COPY_TO_CLIPBOARD_KEY, /* M-w */
 	YANK_KEY, /* Ctrl-Y */
-	COMMAND_KEY /* M-x */
+	COMMAND_KEY, /* M-x */
+	COMMAND_UNDO_KEY /* C-u TODO BETTER KEY NEEDED */
 };
 
 /*
@@ -404,6 +405,7 @@ struct editor_syntax HLDB[] = {
 * Everything is a command. 
 */
 enum command_key {
+	COMMAND_NO_CMD = 0,
 	COMMAND_SET_MODE = 1,
 	COMMAND_SET_TAB_STOP,
 	COMMAND_SET_SOFT_TABS,
@@ -419,7 +421,8 @@ enum command_key {
 	COMMAND_MOVE_TO_START_OF_LINE,
 	COMMAND_MOVE_TO_END_OF_LINE,
 	COMMAND_KILL_LINE,
-	COMMAND_YANK_CLIPBOARD
+	COMMAND_YANK_CLIPBOARD,
+	COMMAND_UNDO
 };
 
 enum command_arg_type {
@@ -552,9 +555,33 @@ struct command_str COMMANDS[] = {
 		"",
 		NULL
 	},
+	{
+		COMMAND_UNDO,
+		"undo",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"",
+		NULL
+	}
 };
 
 #define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
+
+/*** undo ***/
+
+
+struct undo_str {
+	int command_key; // orginal command
+	int undo_command_key; // undo command (if need to be run)
+	int cx; 
+	int cy;
+	int orig_value; // set-tabs, auto-indent
+	struct clipboard_str *clipboard; // kill, yank
+	struct undo_str *next; // Because of stack.
+};
+
+// TODO Create an undo stack.
+struct undo_str *undo_stack;  
 
 /*** prototypes ***/
 
@@ -563,6 +590,7 @@ void editor_refresh_screen();
 char *editor_prompt(char *prompt, void (*callback) (char *, int));
 void editor_move_cursor(int key);
 struct command_str *command_get_by_key(int command_key);
+void command_move_cursor(int command_key);
 
 /*** terminal ***/
 
@@ -1264,7 +1292,7 @@ editor_del_char() {
 
 	if (E.cy == E.numrows) {
 		if (E.cy > 0)
-			editor_move_cursor(ARROW_LEFT);
+			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
 		return; 
 	}
 
@@ -1425,12 +1453,143 @@ editor_save(int command_key) {
 }
 
 
+/*** undo ***/
+void
+init_undo_stack() {
+	undo_stack = malloc(sizeof(struct undo_str));
+	if (undo_stack == NULL)
+		die("undo stack");
+
+	undo_stack->undo_command_key = COMMAND_NO_CMD;
+	undo_stack->command_key = COMMAND_NO_CMD; // The terminus, new stack entries on top of this.
+	undo_stack->cx = 0;
+	undo_stack->cy = 0; 
+	undo_stack->orig_value = 0;
+	undo_stack->clipboard = NULL; 
+	undo_stack->next = NULL; 
+}
+
+struct undo_str 
+*alloc_and_init_undo(int command_key) {
+	struct undo_str *undo = malloc(sizeof(struct undo_str));
+	if (undo == NULL)
+		die("alloc_and_init_undo");
+
+	undo->cx = E.cx;
+	undo->cy = E.cy; 
+	undo->command_key = command_key; 
+	undo->next = undo_stack;
+	
+	undo_stack = undo; 
+
+	return undo; 
+}
+
+/* no args for commands. */
+void
+undo_push_simple(int command_key) {
+	if (undo_stack == NULL)
+		init_undo_stack(); 
+
+	struct undo_str *undo = alloc_and_init_undo(command_key);
+
+	switch (command_key) {
+	case COMMAND_MOVE_CURSOR_UP:
+		undo->undo_command_key = COMMAND_MOVE_CURSOR_DOWN;
+		break;
+	case COMMAND_MOVE_CURSOR_DOWN:
+		undo->undo_command_key = COMMAND_MOVE_CURSOR_UP;
+		break;
+	case COMMAND_MOVE_CURSOR_LEFT:
+		undo->undo_command_key = COMMAND_MOVE_CURSOR_RIGHT;
+		break;
+	case COMMAND_MOVE_CURSOR_RIGHT:
+		undo->undo_command_key = COMMAND_MOVE_CURSOR_LEFT;
+		break;
+	case COMMAND_SET_HARD_TABS:
+		undo->undo_command_key = COMMAND_SET_SOFT_TABS;
+		break;
+	case COMMAND_SET_SOFT_TABS:
+		undo->undo_command_key = COMMAND_SET_HARD_TABS;
+		break;
+	}
+}
+
+void
+undo_push_one_int_arg(int command_key, int orig_value) {
+	if (undo_stack == NULL)
+		init_undo_stack(); 
+
+	struct undo_str *undo = alloc_and_init_undo(command_key);
+
+	undo->orig_value = orig_value; 
+
+	switch (command_key) {
+	case COMMAND_SET_TAB_STOP:
+		undo->undo_command_key = COMMAND_SET_TAB_STOP; // reset
+		break;
+	case COMMAND_SET_AUTO_INDENT:
+		undo->undo_command_key = COMMAND_SET_AUTO_INDENT; // reset
+		break;
+
+	default:
+		break;
+	}
+}
+
+void
+command_undo() {
+	if (undo_stack == NULL) {
+		init_undo_stack();
+		return;
+	}
+
+	struct undo_str *top = undo_stack; 	
+	undo_stack = undo_stack->next; 
+
+	if (E.debug)
+		editor_set_status_message("undo: cmd_key=%d undo_cmd=%d orig_value=%d", 
+			top->command_key, top->undo_command_key, top->orig_value);
+
+	switch(top->undo_command_key) {
+	case COMMAND_MOVE_CURSOR_UP:
+		editor_move_cursor(ARROW_UP);
+		break;
+	case COMMAND_MOVE_CURSOR_DOWN:
+		editor_move_cursor(ARROW_DOWN);
+		break;
+	case COMMAND_MOVE_CURSOR_LEFT:
+		editor_move_cursor(ARROW_LEFT);
+		break;
+	case COMMAND_MOVE_CURSOR_RIGHT:
+		editor_move_cursor(ARROW_RIGHT);
+	case COMMAND_SET_TAB_STOP:
+		E.tab_stop = top->orig_value;
+		break;
+	case COMMAND_SET_HARD_TABS:
+		E.is_soft_indent = 0;
+		break;
+	case COMMAND_SET_SOFT_TABS:
+		E.is_soft_indent = 1; 
+		break;
+	case COMMAND_SET_AUTO_INDENT:
+		E.is_auto_indent = top->orig_value;
+		break;
+	default:
+		break; 
+	}
+
+	top->next = NULL; 
+	free(top); 
+}
+
 /*** M-x command ***/
 
 /**
  * Return command_str by command_key 
  */
-struct command_str *command_get_by_key(int command_key) {
+struct command_str 
+*command_get_by_key(int command_key) {
 	unsigned int i;
 	for (i = 0; i < COMMAND_ENTRIES; i++) {
 		struct command_str *c = &COMMANDS[i];
@@ -1498,15 +1657,21 @@ void
 command_move_cursor(int command_key) {
 	switch(command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
+		/* Start macro */
+		undo_push_simple(COMMAND_MOVE_CURSOR_UP);
 		editor_move_cursor(ARROW_UP);
+		/* End macro */
 		break;
 	case COMMAND_MOVE_CURSOR_DOWN:
+		undo_push_simple(COMMAND_MOVE_CURSOR_DOWN);
 		editor_move_cursor(ARROW_DOWN);
 		break;
 	case COMMAND_MOVE_CURSOR_LEFT:
+		undo_push_simple(COMMAND_MOVE_CURSOR_LEFT);
 		editor_move_cursor(ARROW_LEFT);
 		break;
 	case COMMAND_MOVE_CURSOR_RIGHT:
+		undo_push_simple(COMMAND_MOVE_CURSOR_RIGHT);
 		editor_move_cursor(ARROW_RIGHT);
 		break;
 	default:
@@ -1570,6 +1735,8 @@ editor_command() {
 				break;
 			case COMMAND_SET_TAB_STOP:
 				if (int_arg >= 2) { 
+					undo_push_one_int_arg(COMMAND_SET_TAB_STOP, E.tab_stop);
+
 					E.tab_stop = int_arg; 
 					editor_set_status_message(c->success, int_arg);
 				} else {
@@ -1613,7 +1780,10 @@ editor_command() {
 			case COMMAND_MOVE_CURSOR_LEFT:
 			case COMMAND_MOVE_CURSOR_RIGHT:
 				command_move_cursor(c->command_key); // away (ref. helper f.)
-				break;				
+				break;
+			case COMMAND_UNDO:
+				command_undo();
+				break; 		
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
@@ -2134,8 +2304,6 @@ editor_move_cursor(int key) {
   	if (E.cx > rowlen) {
     	E.cx = rowlen;
   	}
-
-
 /*  	if (E.debug)
   		editor_set_status_message("x.y=%d.%d / %d.%d auto=%d soft=%d", 
   			E.cy, E.cx, E.numrows, rowlen, E.is_auto_indent, E.is_soft_indent);
@@ -2160,6 +2328,8 @@ editor_normalize_key(int c) {
 		c = SAVE_KEY;
 	else if (c == CTRL_KEY('f'))
 		c = FIND_KEY;
+	else if (c == CTRL_KEY('u'))
+		c = COMMAND_UNDO_KEY;
 
 	return c; 
 }
@@ -2213,7 +2383,7 @@ editor_process_keypress() {
 		case CTRL_KEY('h'):
 		case DEL_KEY:
 			if (c == DEL_KEY) 
-				editor_move_cursor(ARROW_RIGHT);
+				command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
 			editor_del_char();
 			break; 
 		case PAGE_DOWN:
@@ -2233,7 +2403,8 @@ editor_process_keypress() {
 				}
 			}
 			while (times--)
-				editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+				command_move_cursor(c == PAGE_UP 
+					? COMMAND_MOVE_CURSOR_UP : COMMAND_MOVE_CURSOR_DOWN);
 			break;
 		}
 		case ARROW_UP:
@@ -2257,18 +2428,18 @@ editor_process_keypress() {
       	case YANK_KEY:
       		clipboard_yank_lines(); 
       		break;
-
       	case CLEAR_MODIFICATION_FLAG_COMMAND:
       		if (E.dirty) {
       			editor_set_status_message("Modification flag cleared.");
       			E.dirty = 0;
       		}
       		break;
-
       	case COMMAND_KEY:
       		editor_command();
       		break; 
-
+      	case COMMAND_UNDO_KEY:
+      		command_undo();
+      		break; 
 		default:
 			editor_insert_char(c);
 			break; 
@@ -2276,6 +2447,7 @@ editor_process_keypress() {
 
 	quit_times = KILO_QUIT_TIMES; 
 }
+
 
 /*** init ***/
 
@@ -2304,6 +2476,9 @@ init_editor() {
 	C.row = NULL; 
 	C.numrows = 0; 
 	C.is_full = 0; // !Ctrl-K after Ctrl-K => clipboard contents filled. New Ctrl-K & is_full => clipbord_clear().
+
+	/* undo stack */
+	init_undo_stack();
 
 	if (get_window_size(&E.screenrows, &E.screencols) == -1)
 		die("get_window_size");
