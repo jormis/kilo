@@ -55,20 +55,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*** defines ***/
 
 /*
-	2017-04-23
-
+	2017-04-24
 	Latest: 
-		- Work towards making every action a command: now M-x move-cursor-up|down|right|lef works.
+	    - --version, -v 
+	    - bug fix for save-* command double prompt.
+		- Erlang mode	    
+		- Work towards making every action a command: now M-x move-cursor-up|down|right|left works.
 		- Auto-indent (2017-04-20)
 			- Python, Makefile: use of ':' for more proper auto-indenting
 
+	TODO Undo functionality 
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
-	TODO M-x save-buffer-as 
+	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
-	TODO- M-x TAB command completion
-	TODO store last command argument context-sensitively
+	TODO Store te last command argument context-sensitively
 	TODO 	- Emacs style C-K or C-SPC & C/M-W
-	TODO command line options (what would those be?) without getopts
+	TODO Proper command line options
 	TODO *Help* mode
 	TODO Multiple buffers
 	TODO- *Command* or *Shell* buffer (think of REPL) 
@@ -2315,10 +2317,14 @@ main(int argc, char **argv) {
 	init_editor();
 
 	if (argc >= 2) {
-		if (strcmp(argv[1], "-d") == 0 || strcmp(argv[1], "--debug") == 0) {
+		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
 			E.debug = 1; 
 			if (argc >= 3)
 				editor_open(argv[2]);
+
+		} else if (!strcmp(argv[1], "-v") || !strcmp(argv[1], "--version")) {
+			printf("kilo, a simple editor -- version %s\r\n", KILO_VERSION);
+			exit(0);
 		} else {
 			editor_open(argv[1]);
 		}
