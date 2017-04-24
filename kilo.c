@@ -1,3 +1,35 @@
+/*
+
+kilo.c -- lightweight editor
+
+Based on the kilo project (https://github.com/antirez/kilo):
+
+Copyright (c) 2016, Salvatore Sanfilippo <antirez at gmail dot com>
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 /*** includes ***/
 
 #define _DEFAULT_SOURCE
@@ -19,6 +51,7 @@
 #include <time.h>
 #include <unistd.h>
 
+
 /*** defines ***/
 
 /*
@@ -29,7 +62,7 @@
 		- Auto-indent (2017-04-20)
 			- Python, Makefile: use of ':' for more proper auto-indenting
 
-	TODO .kilorc (tab-width) (M-x set-tab-width)
+	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x save-buffer-as 
 	TODO M-x command buffer & context-sensitive parameter buffer.
 	TODO- M-x TAB command completion
@@ -53,9 +86,10 @@
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.2 Erlang mode"
+#define KILO_VERSION "0.1.3"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
+#define STATUS_MESSAGE_ABORTED "Aborted."
 
 /**
 	The CTRL_KEY macro bitwise-ANDs a character with the value 00011111, in binary. 
@@ -349,16 +383,16 @@ struct editor_syntax HLDB[] = {
 		4,
 		1
 	},
-        {
-                "Erlang",
-                Erlang_HL_extensions, 
-                Erlang_HL_keywords,
-                "%",
-                "", "",
-                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
-                4,
-                1 // TODO make bitfield?
-        }
+    {
+        "Erlang",
+        Erlang_HL_extensions, 
+        Erlang_HL_keywords,
+        "%",
+        "", "",
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+        4,
+        1 // TODO make bitfield?
+    }
         
 };
 
@@ -419,7 +453,6 @@ struct command_str COMMANDS[] = {
 		"Set tab stop to: %s", // always %s
 		"Tab stop set to: %d", // based on ARG_TYPE: %d or %s
 		"Invalid tab stop value: '%s' (range 2-)"
-
 	},
 	{
 		COMMAND_SET_SOFT_TABS,
@@ -442,14 +475,14 @@ struct command_str COMMANDS[] = {
 		"set-auto-indent",
 		COMMAND_ARG_TYPE_STRING,
 		"Set auto indent on or off: %s",
-		"Auto indent in use.",
+		"Auto indent is %s",
 		"Invalid auto indent mode: '%s'"
 	},
 	{
 		COMMAND_SAVE_BUFFER,
 		"save-buffer",
 		COMMAND_ARG_TYPE_STRING, /* Prompt for new file only. */
-		"Save buffer as: %s",
+		"Save as: %s",
 		"%d bytes written successfully to %s", // Special handling: %d and %s
 		"Can't save, I/O error: %s" // %s = error
 	},
@@ -495,7 +528,7 @@ struct command_str COMMANDS[] = {
 	},
 	{
 		COMMAND_MOVE_CURSOR_RIGHT,
-		"move-cursor-left",
+		"move-cursor-right",
 		COMMAND_ARG_TYPE_NONE,
 		NULL,
 		"",
@@ -527,6 +560,7 @@ void editor_set_status_message(const char *fmt, ...);
 void editor_refresh_screen();
 char *editor_prompt(char *prompt, void (*callback) (char *, int));
 void editor_move_cursor(int key);
+struct command_str *command_get_by_key(int command_key);
 
 /*** terminal ***/
 
@@ -572,7 +606,6 @@ int
 editor_read_key() {
   	int nread;
   	char c;
-  	/* char debug[6]; */
 
 	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
 		if (nread == -1 && errno != EAGAIN) die("read");
@@ -580,24 +613,17 @@ editor_read_key() {
 
   	if (c == '\x1b') {
   		//write(STDERR_FILENO, "|ESC|", 6); 
-
   		char seq[3];
   		
   		if (read(STDIN_FILENO, &seq[0], 1) != 1) return c; //'\x1b'; /* vy!c?*/
   	
-  		/*sprintf(debug, "<<%c>>", seq[0]);
-  		write(STDERR_FILENO, debug, 6); */
-
-  		/* if (key = editor_esc_keybindings(c)) return key; 
-			TODO When I add more. Like <esc>F for search. */
-  		if (seq[0] == 'v') { 
+  		if (seq[0] == 'v' || seq[0] == 'V') { 
   			return PAGE_UP; 
-  		} else if (seq[0] == 'c') {
+  		} else if (seq[0] == 'c' || seq[0] == 'C') {
   			return CLEAR_MODIFICATION_FLAG_COMMAND; 
-  		} else if (seq[0] == 'x') {
+  		} else if (seq[0] == 'x' || seq[0] == 'X') {
   			return COMMAND_KEY; 
   		}
-
 
   		if (read(STDIN_FILENO, &seq[1], 1) != 1) return c; //'\x1b'; /*ditto*/
 
@@ -1343,25 +1369,34 @@ editor_open(char *filename) {
  * rc = 1 aborted
  */
 void
-editor_save(int command_key, char *prompt, char *success, char *error_status) {
+editor_save(int command_key) {
 	int len; 
 	char *buf; 
 	int fd; 
 
-	if (command_key == COMMAND_SAVE_BUFFER_AS || E.filename == NULL) {
+	struct command_str *c = command_get_by_key(command_key);
+	if (c == NULL) {
+		editor_set_status_message("Unknown command! Cannot save!?!");
+		return;
+	}
 
-		char *tmp = editor_prompt(prompt, NULL); //"Save as: %s", NULL);
+	if (command_key == COMMAND_SAVE_BUFFER_AS || E.filename == NULL) {
+		char *tmp = editor_prompt(c->prompt, NULL); 
 		if (tmp != NULL) {
 			free(E.filename);
+			free(E.absolute_filename);
+			free(E.basename);
+
 			E.filename = tmp; 
+			E.absolute_filename = realpath(E.filename, NULL); 
+			E.basename = editor_basename(E.filename);
+
 		} else {
-			editor_set_status_message("Save aborted"); // TODO ABORT message in conf.
+			editor_set_status_message(STATUS_MESSAGE_ABORTED); // TODO ABORT message in conf.
 			return; 
 		}
 	}
 
-	E.absolute_filename = realpath(E.filename, NULL); 
-	E.basename = editor_basename(E.filename);
 
 	buf = editor_rows_to_string(&len);
 	fd = open(E.filename, O_RDWR | O_CREAT, 0644);
@@ -1373,7 +1408,7 @@ editor_save(int command_key, char *prompt, char *success, char *error_status) {
         		E.dirty = 0;
         		E.is_new_file = 0;  
 
-        		editor_set_status_message(success, // TODO Special case: both %d and %s
+        		editor_set_status_message(c->success, // TODO Special case: both %d and %s
         			len, E.absolute_filename ? E.absolute_filename : E.filename);
 				return;
 			}
@@ -1383,15 +1418,28 @@ editor_save(int command_key, char *prompt, char *success, char *error_status) {
 	}
 	free(buf);
 
-	//editor_set_status_message("Can't save: I/O error: %s", strerror(errno));
-	editor_set_status_message(error_status, strerror(errno));
+	editor_set_status_message(c->error_status, strerror(errno));
 	return; 
 }
 
 
-
-
 /*** M-x command ***/
+
+/**
+ * Return command_str by command_key 
+ */
+struct command_str *command_get_by_key(int command_key) {
+	unsigned int i;
+	for (i = 0; i < COMMAND_ENTRIES; i++) {
+		struct command_str *c = &COMMANDS[i];
+
+		if (c->command_key == command_key) 
+			return c;
+
+	}
+
+	return NULL;
+}
 
 /**
   Return:
@@ -1417,9 +1465,9 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 	original_raw_string = strdup(raw_str); 
 
 	if (c->command_arg_type == COMMAND_ARG_TYPE_STRING) {
-		*ret_string = raw_str; 
+		*ret_string = original_raw_string; 
+		free(raw_str);
 		return 1; // One argument 
-
 	} else if (c->command_arg_type == COMMAND_ARG_TYPE_INT) {
 		*ret_string = original_raw_string; /* For the error status message */
 
@@ -1430,6 +1478,8 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 
 		rc = sscanf(raw_str, "%d", &raw_int); /* strtoimax(raw_str, NULL, 10); */
 
+		free(raw_str);
+
 		if (rc == 0) { 
 			return -1; 
 		}
@@ -1438,11 +1488,12 @@ editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_stri
 		return 1; 
 	}
 
+	free(raw_str);
 	return 0; 
 }
 
 void
-command_move_cursor(int command_key, char *prompt, char *success, char *error_status) {
+command_move_cursor(int command_key) {
 	switch(command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
 		editor_move_cursor(ARROW_UP);
@@ -1464,32 +1515,37 @@ command_move_cursor(int command_key, char *prompt, char *success, char *error_st
 
 void
 editor_command() {
-	char *command = NULL;
-	//char *argument = NULL; 
+	char *command = NULL; 
 	unsigned int i = 0;
 	int int_arg = 0;
 	char *char_arg = NULL;
 	int found = 0; 
 
-	command = editor_prompt("Command: %s", NULL);
-	if (command == NULL) {
-		editor_set_status_message("M-x command aborted.");
+	char *tmp = editor_prompt("Command: %s", NULL);
+	if (tmp == NULL) {
+		editor_set_status_message(STATUS_MESSAGE_ABORTED);
 		return; 
 	}
+
+	command = strdup(tmp);
+	free(tmp);
 
 	for (i = 0; i < COMMAND_ENTRIES; i++) {
 		struct command_str *c = &COMMANDS[i];
 
-		if (!strncmp(c->command_str, command, strlen(c->command_str))) {
+		if (!strncmp(c->command_str, command, strlen(command))) {
 			found = 1; 
-			if (c->command_arg_type == COMMAND_ARG_TYPE_INT 
-				|| c->command_arg_type == COMMAND_ARG_TYPE_STRING) {
+			if ((c->command_arg_type == COMMAND_ARG_TYPE_INT 
+				|| c->command_arg_type == COMMAND_ARG_TYPE_STRING)
+				/* FIXME remove exception... */
+				&& (c->command_key != COMMAND_SAVE_BUFFER 
+					&& c->command_key != COMMAND_SAVE_BUFFER_AS)) {
 				/* should do union. */
 
 				// rc=1 is good: it's the number of successfully parsed arguments.
 				int rc = editor_get_command_argument(c, &int_arg, &char_arg);
 				if (rc == 0) { // Aborted
-					editor_set_status_message("%s aborted.", c->command_str);
+					editor_set_status_message(STATUS_MESSAGE_ABORTED);
 					free(char_arg);
 					free(command);
 					return; 
@@ -1530,7 +1586,7 @@ editor_command() {
 					auto_indent_set = 1;
 				}
 				if (auto_indent_set)
-					editor_set_status_message(c->success);
+					editor_set_status_message(c->success, E.is_auto_indent ? "on" : "off"); 
 				else
 					editor_set_status_message(c->error_status, char_arg);
 				break;
@@ -1545,7 +1601,7 @@ editor_command() {
 				break;
 			case COMMAND_SAVE_BUFFER:
 			case COMMAND_SAVE_BUFFER_AS:
-				editor_save(c->command_key, c->prompt, c->success, c->error_status);
+				editor_save(c->command_key);
 				break;
 			case COMMAND_OPEN_FILE:
 				editor_set_status_message("Not implemented yet.");
@@ -1554,7 +1610,7 @@ editor_command() {
 			case COMMAND_MOVE_CURSOR_DOWN:
 			case COMMAND_MOVE_CURSOR_LEFT:
 			case COMMAND_MOVE_CURSOR_RIGHT:
-				command_move_cursor(c->command_key, NULL, NULL, NULL); // away (ref. helper f.)
+				command_move_cursor(c->command_key); // away (ref. helper f.)
 				break;				
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
@@ -2139,8 +2195,7 @@ editor_process_keypress() {
 			exit(0);
 			break;
 		case SAVE_KEY:
-			editor_save(COMMAND_SAVE_BUFFER, 
-				"Save buffer as: %s", "%d bytes written successfully to %s", "Can't save: I/O error: %s");
+			editor_save(COMMAND_SAVE_BUFFER);
 			break; 
 		case HOME_KEY:
 			E.cx = 0;
@@ -2180,16 +2235,16 @@ editor_process_keypress() {
 			break;
 		}
 		case ARROW_UP:
-			command_move_cursor(COMMAND_MOVE_CURSOR_UP, NULL, NULL, NULL);
+			command_move_cursor(COMMAND_MOVE_CURSOR_UP);
 			break;
 		case ARROW_LEFT:
-			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT, NULL, NULL, NULL);
+			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
 			break;
 		case ARROW_RIGHT:
-			command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT, NULL, NULL, NULL);
+			command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
 			break;
 		case ARROW_DOWN:
-			command_move_cursor(COMMAND_MOVE_CURSOR_DOWN, NULL, NULL, NULL);
+			command_move_cursor(COMMAND_MOVE_CURSOR_DOWN);
 			break;
 		case CTRL_KEY('l'):
     	case '\x1b':
