@@ -93,6 +93,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
 
+#define DEBUG_UNDOS (1<<0)
+#define DEBUG_COMMANDS (1<<1)
+
 /**
 	The CTRL_KEY macro bitwise-ANDs a character with the value 00011111, in binary. 
 	In other words, it sets the upper 3 bits of the character to 0. 
@@ -425,7 +428,8 @@ enum command_key {
 	COMMAND_YANK_CLIPBOARD,
 	COMMAND_UNDO,
 	COMMAND_INSERT_CHAR, /* for undo */
-	COMMAND_DELETE_CHAR /* for undo */
+	COMMAND_DELETE_CHAR, /* for undo */
+	COMMAND_DELETE_INDENT_AND_NEWLINE /* for undo only */
 };
 
 enum command_arg_type {
@@ -1289,7 +1293,7 @@ calculate_indent(erow *row) {
 
 }
 
-void
+int
 editor_insert_newline() {
 	int no_of_chars_to_indent = 0;
 	char *buf;
@@ -1327,11 +1331,14 @@ editor_insert_newline() {
 	
 	E.cy++; 
 	E.cx = no_of_chars_to_indent; // was: = 0 
+
+	return no_of_chars_to_indent; 
 }
 
 /**
  * The functionality ought to be in command_del_char() because undo*()s are also here.
  * TODO FIXME XXX
+ * @param undo (1=called from undo(); 0=normal operation) 
  */
 void
 editor_del_char(int undo) {
@@ -1552,7 +1559,7 @@ init_undo_stack() {
 
 void
 undo_debug_stack() {
-	if (!E.debug)
+	if (!(E.debug & DEBUG_UNDOS))
 		return;
 
 	struct undo_str *p = undo_stack;
@@ -1675,6 +1682,13 @@ undo() {
 		else
 			editor_insert_char(top->orig_value);
 		break; 
+	case COMMAND_DELETE_INDENT_AND_NEWLINE: {
+		// Undoes command_insert_newline().
+		int del = top->orig_value; 
+		while (del-- > 0)
+			editor_del_char(1);
+		break; 
+		}
 	default:
 		break; 
 	}
@@ -1687,14 +1701,12 @@ undo() {
 
 void
 command_debug(int command_key) {
-#if 0
-	if (!E.debug)
+	if (E.debug & DEBUG_COMMANDS)
 		return;
 
 	struct command_str *c = command_get_by_key(command_key);
 	if (c != NULL)
 		editor_set_status_message(c->success);
-#endif
 }
 
 /**
@@ -1715,15 +1727,6 @@ void
 command_insert_char(int character) {
 	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
 	editor_insert_char(character);
-#if 0
-
-	if (!E.debug)
-		return;
-
-	struct command_str *c = command_get_by_key(COMMAND_INSERT_CHAR);
-	if (c != NULL)
-		editor_set_status_message(c->success, character);
-#endif
 }
 
 void 
@@ -1734,12 +1737,14 @@ command_delete_char() {
 }
 
 void command_insert_newline() {
-	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
-	editor_insert_newline();
-#if 0
-	if (E.debug)
+	int indented_chars = editor_insert_newline();
+
+	// Delete indented+1 chars at once.
+	undo_push_one_int_arg(COMMAND_INSERT_CHAR, COMMAND_DELETE_INDENT_AND_NEWLINE, 
+		indented_chars + 1);
+
+	if (E.debug & DEBUG_COMMANDS)
 		editor_set_status_message("Inserted newline");
-#endif
 }
 /**
   Return:
@@ -2646,13 +2651,16 @@ main(int argc, char **argv) {
 	enable_raw_mode();
 	init_editor();
 
-	if (argc >= 2) {
+	if (argc >= 3) {
 		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
-			E.debug = 1; 
-			if (argc >= 3)
-				editor_open(argv[2]);
 
-		} else if (!strcmp(argv[1], "-v") || !strcmp(argv[1], "--version")) {
+			E.debug = atoi(argv[2]);
+
+			if (argc >= 4)
+				editor_open(argv[3]);
+		} 
+	} else if (argc >= 2) {
+		if (!strcmp(argv[1], "-v") || !strcmp(argv[1], "--version")) {
 			printf("kilo, a simple editor -- version %s\r\n", KILO_VERSION);
 			exit(0);
 		} else {
