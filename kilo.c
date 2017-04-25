@@ -116,7 +116,7 @@ enum editor_key {
 	PAGE_UP,
 	PAGE_DOWN,
 	REFRESH_KEY,
-	QUIT_KEY, 
+	QUIT_KEY, // 1010
 	SAVE_KEY,
 	FIND_KEY,
 	CLEAR_MODIFICATION_FLAG_COMMAND, /* M-c */
@@ -129,7 +129,8 @@ enum editor_key {
 	COPY_TO_CLIPBOARD_KEY, /* M-w */
 	YANK_KEY, /* Ctrl-Y */
 	COMMAND_KEY, /* M-x */
-	COMMAND_UNDO_KEY /* C-u TODO BETTER KEY NEEDED */
+	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
+	COMMAND_INSERT_NEWLINE /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
 };
 
 /*
@@ -412,17 +413,19 @@ enum command_key {
 	COMMAND_SET_HARD_TABS,
 	COMMAND_SET_AUTO_INDENT,
 	COMMAND_SAVE_BUFFER, 
-	COMMAND_SAVE_BUFFER_AS,   // TODO
+	COMMAND_SAVE_BUFFER_AS,  
 	COMMAND_OPEN_FILE, // TODO
 	COMMAND_MOVE_CURSOR_UP,
-	COMMAND_MOVE_CURSOR_DOWN,
+	COMMAND_MOVE_CURSOR_DOWN, // cmd_key = 10
 	COMMAND_MOVE_CURSOR_LEFT,
 	COMMAND_MOVE_CURSOR_RIGHT,
 	COMMAND_MOVE_TO_START_OF_LINE,
 	COMMAND_MOVE_TO_END_OF_LINE,
 	COMMAND_KILL_LINE,
 	COMMAND_YANK_CLIPBOARD,
-	COMMAND_UNDO
+	COMMAND_UNDO,
+	COMMAND_INSERT_CHAR, /* for undo */
+	COMMAND_DELETE_CHAR /* for undo */
 };
 
 enum command_arg_type {
@@ -562,6 +565,22 @@ struct command_str COMMANDS[] = {
 		NULL,
 		"",
 		NULL
+	},
+	{
+		COMMAND_INSERT_CHAR,
+		"insert-char",
+		COMMAND_ARG_TYPE_STRING,
+		"Character: %s",
+		"Inserted '%c'",
+		"Failed to insert a char:"
+	},
+	{
+		COMMAND_DELETE_CHAR,
+		"delete-char",
+		COMMAND_ARG_TYPE_NONE,
+		NULL,
+		"Deleted",
+		"No characters to delete!"
 	}
 };
 
@@ -591,6 +610,8 @@ char *editor_prompt(char *prompt, void (*callback) (char *, int));
 void editor_move_cursor(int key);
 struct command_str *command_get_by_key(int command_key);
 void command_move_cursor(int command_key);
+void undo_push_simple(int command_key, int undo_command_key);
+void undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value);
 
 /*** terminal ***/
 
@@ -1194,68 +1215,95 @@ editor_insert_char(int c) {
 	E.cx += editor_row_insert_char(&E.row[E.cy], E.cx, c);  
 }
 
+/**
+ * If auto_indent is on then we calculate the number of indents.
+ * Here you can add language/mode specific indents. 
+ */
+int
+calculate_indent(erow *row) {
+	int iter = 0;
+	int no_of_chars_to_indent = 0;
+	int i = 0; 
+
+	if (E.is_auto_indent) {
+		iter = 1; 
+		// Cutoff point is cursor == E.cx
+		for (i = 0; iter && i < E.cx; i++) {
+			if ((row->chars[i] == ' ' && E.is_soft_indent)	
+				|| (row->chars[i] == '\t' && !E.is_soft_indent)) {
+				no_of_chars_to_indent++;
+			} else {
+				iter = 0;
+			}
+		}
+
+		if (E.is_soft_indent
+			&& (no_of_chars_to_indent % E.tab_stop == 0)) {
+
+			if (!strcasecmp(E.syntax->filetype, "Python")) { /* Little extra for Python mode. */
+				iter = 1; 
+				for (i = E.cx-1; iter && i >= 0; i--) {
+					if (row->chars[i] == ':' || row->chars[i] == '\\') { // : or '\\'' 
+						no_of_chars_to_indent += E.tab_stop;
+						iter = 0;
+					} else if (!isspace(row->chars[i])) {
+						iter = 0; /* non-SPC terminates. */
+					}
+				}
+			} else if (!strcasecmp(E.syntax->filetype, "Erlang")) {
+				iter = 1; 
+				for (i = E.cx-1; iter && i >= 1; i--) { // NB: i >= 1
+					if (row->chars[i-1] == '-' || row->chars[i] == '>') { // ->
+						no_of_chars_to_indent += E.tab_stop;
+						iter = 0;
+					} else if (!isspace(row->chars[i])) {
+						iter = 0; /* non-SPC terminates. */
+					}
+				}				
+			}
+		} else if (!E.is_soft_indent
+		 		&& !strcasecmp(E.syntax->filetype, "Makefile")) {
+			iter = 1; 
+			for (i = 0; iter && i < E.cx; i++) {
+				if (row->chars[i] == ':') { // target: dep
+					no_of_chars_to_indent++;
+					iter = 0;
+				} 
+			}
+		}
+	}
+
+	return no_of_chars_to_indent; 
+
+#if 0
+		/* # of new spaces + the end of row. */
+		buf = malloc(no_of_chars_to_indent + row->size - E.cx + 1);
+		if (no_of_chars_to_indent > 0) {
+			memset(buf, E.is_soft_indent ? ' ' : '\t', no_of_chars_to_indent);
+		}
+		memcpy(&buf[no_of_chars_to_indent], &row->chars[E.cx], row->size - E.cx);
+		buf[no_of_chars_to_indent + row->size - E.cx] = '\0';
+		//} 
+	} // is_auto_indent
+#endif 
+
+}
+
 void
 editor_insert_newline() {
-	int i = 0;
 	int no_of_chars_to_indent = 0;
-	int iter = 1; 
 	char *buf;
+	erow *row; 
 
 	if (E.cx == 0) {
 		editor_insert_row(E.cy, "", 0); 
 		no_of_chars_to_indent = 0; 
 	} else {
-		// E.cx != 0 (> 0) so like 
-		// def foo:<INSERT NEWLINE ie PRESS ENTER>
-		erow *row = &E.row[E.cy];
+		row = &E.row[E.cy];
 
-		if (E.is_auto_indent) {
-			iter = 1; 
-			// Cutoff point is cursor == E.cx
-			for (i = 0; iter && i < E.cx; i++) {
-				if ((row->chars[i] == ' ' && E.is_soft_indent)	
-					|| (row->chars[i] == '\t' && !E.is_soft_indent)) {
-					no_of_chars_to_indent++;
-				} else {
-					iter = 0;
-				}
-			}
+		no_of_chars_to_indent = calculate_indent(row);
 
-			if (E.is_soft_indent
-				&& (no_of_chars_to_indent % E.tab_stop == 0)) {
-
-				if (!strcasecmp(E.syntax->filetype, "Python")) { /* Little extra for Python mode. */
-					iter = 1; 
-					for (i = E.cx-1; iter && i >= 0; i--) {
-						if (row->chars[i] == ':' || row->chars[i] == '\\') { // : or '\\'' 
-							no_of_chars_to_indent += E.tab_stop;
-							iter = 0;
-						} else if (!isspace(row->chars[i])) {
-							iter = 0; /* non-SPC terminates. */
-						}
-					}
-				} else if (!strcasecmp(E.syntax->filetype, "Erlang")) {
-					iter = 1; 
-					for (i = E.cx-1; iter && i >= 1; i--) { // NB: i >= 1
-						if (row->chars[i-1] == '-' || row->chars[i] == '>') { // ->
-							no_of_chars_to_indent += E.tab_stop;
-							iter = 0;
-						} else if (!isspace(row->chars[i])) {
-							iter = 0; /* non-SPC terminates. */
-						}
-					}				
-				}
-			} else if (!E.is_soft_indent
-			 		&& !strcasecmp(E.syntax->filetype, "Makefile")) {
-				iter = 1; 
-				for (i = 0; iter && i < E.cx; i++) {
-					if (row->chars[i] == ':') { // target: dep
-						no_of_chars_to_indent++;
-						iter = 0;
-					} 
-				}
-			}
-
+		if (no_of_chars_to_indent > 0) {
 			/* # of new spaces + the end of row. */
 			buf = malloc(no_of_chars_to_indent + row->size - E.cx + 1);
 			if (no_of_chars_to_indent > 0) {
@@ -1263,11 +1311,6 @@ editor_insert_newline() {
 			}
 			memcpy(&buf[no_of_chars_to_indent], &row->chars[E.cx], row->size - E.cx);
 			buf[no_of_chars_to_indent + row->size - E.cx] = '\0';
-			//} 
-		} // is_auto_indent
-
-		// Last section: common to both auto-indent & not. 		
-		if (no_of_chars_to_indent) {
 			editor_insert_row(E.cy + 1, buf, strlen(buf));
 			free(buf);
 		} else {
@@ -1286,13 +1329,21 @@ editor_insert_newline() {
 	E.cx = no_of_chars_to_indent; // was: = 0 
 }
 
+/**
+ * The functionality ought to be in command_del_char() because undo*()s are also here.
+ * TODO FIXME XXX
+ */
 void
-editor_del_char() {
+editor_del_char(int undo) {
 	erow *row;
 
 	if (E.cy == E.numrows) {
-		if (E.cy > 0)
-			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
+		if (E.cy > 0) {
+			if (undo)
+				editor_move_cursor(ARROW_LEFT);
+			else
+				command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
+		}
 		return; 
 	}
 
@@ -1301,8 +1352,36 @@ editor_del_char() {
 
 	row = &E.row[E.cy];
 	if (E.cx > 0) {
-		E.cx -= editor_row_del_char(row, E.cx - 1);
-	} else {
+		int orig_cx = E.cx; 
+		int char_to_be_deleted = row->chars[E.cx];
+		int deleted_chars_len = editor_row_del_char(row, E.cx - 1);
+		
+		//E.cx -= deleted_chars_len;
+//===
+		if (deleted_chars_len > 0) {
+			int current_cx = E.cx;
+			E.cx = orig_cx;
+
+			while (current_cx < E.cx) {
+				E.cx = current_cx; 
+				if (! undo) {
+					if (current_cx == orig_cx) {
+						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, char_to_be_deleted);
+					} else {
+						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, 
+							E.is_soft_indent ? (int) ' ' : (int) '\t');
+					}
+				}
+				current_cx++;
+			}
+		}
+
+		E.cx = orig_cx - deleted_chars_len;
+//===
+	} else { 
+		if (! undo)
+			undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, '\r');
+
 		E.cx = E.row[E.cy - 1].size; 
 		editor_row_append_string(&E.row[E.cy - 1], row->chars, row->size); 
 		editor_del_row(E.cy);
@@ -1353,6 +1432,7 @@ editor_open(char *filename) {
   	size_t linecap = 0;
   	ssize_t linelen;
   	struct stat stat_buffer; 
+  	FILE *fp = NULL;
 
   	free(E.filename); 
   	free(E.absolute_filename); 
@@ -1373,7 +1453,7 @@ editor_open(char *filename) {
   		}
   	}
 
- 	FILE *fp = fopen(filename, "r");
+ 	fp = fopen(filename, "r");
   	if (!fp) {
   		die("fopen");
  	}
@@ -1403,6 +1483,7 @@ editor_save(int command_key) {
 	int len; 
 	char *buf; 
 	int fd; 
+	char *tmp; 
 
 	struct command_str *c = command_get_by_key(command_key);
 	if (c == NULL) {
@@ -1411,7 +1492,7 @@ editor_save(int command_key) {
 	}
 
 	if (command_key == COMMAND_SAVE_BUFFER_AS || E.filename == NULL) {
-		char *tmp = editor_prompt(c->prompt, NULL); 
+		tmp = editor_prompt(c->prompt, NULL); 
 		if (tmp != NULL) {
 			free(E.filename);
 			free(E.absolute_filename);
@@ -1469,8 +1550,41 @@ init_undo_stack() {
 	undo_stack->next = NULL; 
 }
 
-struct undo_str 
-*alloc_and_init_undo(int command_key) {
+void
+undo_debug_stack() {
+	if (!E.debug)
+		return;
+
+	struct undo_str *p = undo_stack;
+
+	char *debug = NULL; 
+	int i = 1; 
+	int currlen = 0;
+	int from = 0;
+
+	while (p != NULL) {
+		char *entry = malloc(80);
+		int len = sprintf(entry, "|%d={%d,%d,%d}", i++, p->command_key, p->undo_command_key, p->orig_value);
+		
+		debug = realloc(debug, currlen + len + 1);
+		memcpy(&debug[currlen], entry, len);
+		debug[currlen + len] = '\0';
+		currlen += len; 
+		free(entry);	
+
+		p = p->next; 
+	} 
+
+	if (currlen > E.screencols)
+		from = currlen - E.screencols; 
+	else
+		from = 0; 
+
+	editor_set_status_message(&debug[from]);
+}
+
+struct undo_str *
+alloc_and_init_undo(int command_key) {
 	struct undo_str *undo = malloc(sizeof(struct undo_str));
 	if (undo == NULL)
 		die("alloc_and_init_undo");
@@ -1487,69 +1601,45 @@ struct undo_str
 
 /* no args for commands. */
 void
-undo_push_simple(int command_key) {
+undo_push_simple(int command_key, int undo_command_key) {
 	if (undo_stack == NULL)
 		init_undo_stack(); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
+	undo->undo_command_key = undo_command_key; 
+	undo->orig_value = -1; 
 
-	switch (command_key) {
-	case COMMAND_MOVE_CURSOR_UP:
-		undo->undo_command_key = COMMAND_MOVE_CURSOR_DOWN;
-		break;
-	case COMMAND_MOVE_CURSOR_DOWN:
-		undo->undo_command_key = COMMAND_MOVE_CURSOR_UP;
-		break;
-	case COMMAND_MOVE_CURSOR_LEFT:
-		undo->undo_command_key = COMMAND_MOVE_CURSOR_RIGHT;
-		break;
-	case COMMAND_MOVE_CURSOR_RIGHT:
-		undo->undo_command_key = COMMAND_MOVE_CURSOR_LEFT;
-		break;
-	case COMMAND_SET_HARD_TABS:
-		undo->undo_command_key = COMMAND_SET_SOFT_TABS;
-		break;
-	case COMMAND_SET_SOFT_TABS:
-		undo->undo_command_key = COMMAND_SET_HARD_TABS;
-		break;
-	}
+	undo_debug_stack();
 }
 
 void
-undo_push_one_int_arg(int command_key, int orig_value) {
+undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value) {
 	if (undo_stack == NULL)
 		init_undo_stack(); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
-
+	undo->undo_command_key = undo_command_key; 
 	undo->orig_value = orig_value; 
 
-	switch (command_key) {
-	case COMMAND_SET_TAB_STOP:
-		undo->undo_command_key = COMMAND_SET_TAB_STOP; // reset
-		break;
-	case COMMAND_SET_AUTO_INDENT:
-		undo->undo_command_key = COMMAND_SET_AUTO_INDENT; // reset
-		break;
-
-	default:
-		break;
-	}
+	undo_debug_stack(); 
 }
 
 void
-command_undo() {
+undo() {
 	if (undo_stack == NULL) {
 		init_undo_stack();
 		return;
 	}
 
+	if (undo_stack->command_key == COMMAND_NO_CMD)
+		return; 
+
 	struct undo_str *top = undo_stack; 	
 	undo_stack = undo_stack->next; 
 
-	if (E.debug)
-		editor_set_status_message("undo: cmd_key=%d undo_cmd=%d orig_value=%d", 
-			top->command_key, top->undo_command_key, top->orig_value);
+	undo_debug_stack();
+		//editor_set_status_message("undo: cmd=%d undo_cmd=%d orig_value=%d", 
+		//	top->command_key, top->undo_command_key, top->orig_value);
 
 	switch(top->undo_command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
@@ -1563,6 +1653,7 @@ command_undo() {
 		break;
 	case COMMAND_MOVE_CURSOR_RIGHT:
 		editor_move_cursor(ARROW_RIGHT);
+		break;
 	case COMMAND_SET_TAB_STOP:
 		E.tab_stop = top->orig_value;
 		break;
@@ -1575,6 +1666,15 @@ command_undo() {
 	case COMMAND_SET_AUTO_INDENT:
 		E.is_auto_indent = top->orig_value;
 		break;
+	case COMMAND_DELETE_CHAR:
+		editor_del_char(1);
+		break;
+	case COMMAND_INSERT_CHAR:
+		if (top->orig_value == '\r')
+			editor_insert_newline(); 
+		else
+			editor_insert_char(top->orig_value);
+		break; 
 	default:
 		break; 
 	}
@@ -1585,23 +1685,62 @@ command_undo() {
 
 /*** M-x command ***/
 
+void
+command_debug(int command_key) {
+#if 0
+	if (!E.debug)
+		return;
+
+	struct command_str *c = command_get_by_key(command_key);
+	if (c != NULL)
+		editor_set_status_message(c->success);
+#endif
+}
+
 /**
  * Return command_str by command_key 
  */
-struct command_str 
-*command_get_by_key(int command_key) {
+struct command_str *
+command_get_by_key(int command_key) {
 	unsigned int i;
 	for (i = 0; i < COMMAND_ENTRIES; i++) {
 		struct command_str *c = &COMMANDS[i];
-
 		if (c->command_key == command_key) 
 			return c;
-
 	}
-
 	return NULL;
 }
 
+void
+command_insert_char(int character) {
+	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
+	editor_insert_char(character);
+#if 0
+
+	if (!E.debug)
+		return;
+
+	struct command_str *c = command_get_by_key(COMMAND_INSERT_CHAR);
+	if (c != NULL)
+		editor_set_status_message(c->success, character);
+#endif
+}
+
+void 
+command_delete_char() {
+	editor_del_char(0);
+	undo_debug_stack(); 
+	command_debug(COMMAND_DELETE_CHAR);
+}
+
+void command_insert_newline() {
+	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
+	editor_insert_newline();
+#if 0
+	if (E.debug)
+		editor_set_status_message("Inserted newline");
+#endif
+}
 /**
   Return:
   0 = no argument gotten
@@ -1658,20 +1797,20 @@ command_move_cursor(int command_key) {
 	switch(command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
 		/* Start macro */
-		undo_push_simple(COMMAND_MOVE_CURSOR_UP);
+		undo_push_simple(COMMAND_MOVE_CURSOR_UP, COMMAND_MOVE_CURSOR_DOWN);
 		editor_move_cursor(ARROW_UP);
 		/* End macro */
 		break;
 	case COMMAND_MOVE_CURSOR_DOWN:
-		undo_push_simple(COMMAND_MOVE_CURSOR_DOWN);
+		undo_push_simple(COMMAND_MOVE_CURSOR_DOWN, COMMAND_MOVE_CURSOR_UP);
 		editor_move_cursor(ARROW_DOWN);
 		break;
 	case COMMAND_MOVE_CURSOR_LEFT:
-		undo_push_simple(COMMAND_MOVE_CURSOR_LEFT);
+		undo_push_simple(COMMAND_MOVE_CURSOR_LEFT, COMMAND_MOVE_CURSOR_RIGHT);
 		editor_move_cursor(ARROW_LEFT);
 		break;
 	case COMMAND_MOVE_CURSOR_RIGHT:
-		undo_push_simple(COMMAND_MOVE_CURSOR_RIGHT);
+		undo_push_simple(COMMAND_MOVE_CURSOR_RIGHT, COMMAND_MOVE_CURSOR_LEFT);
 		editor_move_cursor(ARROW_RIGHT);
 		break;
 	default:
@@ -1681,7 +1820,7 @@ command_move_cursor(int command_key) {
 	
 
 void
-editor_command() {
+exec_command() {
 	char *command = NULL; 
 	unsigned int i = 0;
 	int int_arg = 0;
@@ -1735,7 +1874,7 @@ editor_command() {
 				break;
 			case COMMAND_SET_TAB_STOP:
 				if (int_arg >= 2) { 
-					undo_push_one_int_arg(COMMAND_SET_TAB_STOP, E.tab_stop);
+					undo_push_one_int_arg(COMMAND_SET_TAB_STOP, COMMAND_SET_TAB_STOP, E.tab_stop);
 
 					E.tab_stop = int_arg; 
 					editor_set_status_message(c->success, int_arg);
@@ -1782,8 +1921,22 @@ editor_command() {
 				command_move_cursor(c->command_key); // away (ref. helper f.)
 				break;
 			case COMMAND_UNDO:
-				command_undo();
-				break; 		
+				undo();
+				break; 
+			case COMMAND_INSERT_CHAR:
+				if (strlen(char_arg) > 0) {
+					int character = (int) char_arg[0];
+					command_insert_char(character);
+				} else {
+					editor_set_status_message(c->error_status);
+				}
+				break; 
+			case COMMAND_DELETE_CHAR:
+				command_delete_char();
+				break;	
+			case COMMAND_INSERT_NEWLINE:
+				command_insert_newline();
+				break; 
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
@@ -2351,7 +2504,8 @@ editor_process_keypress() {
 
 	switch (c) {
 		case '\r':
-			editor_insert_newline(); 
+			command_insert_newline();
+			//editor_insert_newline(); 
 			break;
 		case QUIT_KEY:
 			if (E.dirty && quit_times > 0) {
@@ -2384,7 +2538,8 @@ editor_process_keypress() {
 		case DEL_KEY:
 			if (c == DEL_KEY) 
 				command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
-			editor_del_char();
+			command_delete_char();
+			//editor_del_char();
 			break; 
 		case PAGE_DOWN:
 		case PAGE_UP: { 
@@ -2435,13 +2590,13 @@ editor_process_keypress() {
       		}
       		break;
       	case COMMAND_KEY:
-      		editor_command();
+      		exec_command();
       		break; 
       	case COMMAND_UNDO_KEY:
-      		command_undo();
+      		undo();
       		break; 
 		default:
-			editor_insert_char(c);
+			command_insert_char(c);
 			break; 
 	}
 
