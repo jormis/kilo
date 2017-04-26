@@ -54,8 +54,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*** defines ***/
 /*
 	2017-04-26
-	Latest: 
-		- undo works, but not yet clipboard undo.
+	Latest:
+            - JavaScript mode; refactoring/cleaning.         
+	    - undo works, but not yet clipboard undo.
 	    - --version, -v 1,2,3 = (1= DEBUG_UNDO, 2=DEBUG_COMMANDS)
 	    - bug fix for save-* command double prompt.
 		- Erlang mode	    
@@ -78,7 +79,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	
 	TODO modes
 	- Shell mode 
-	- Javascript mode
 	- Clojure mode
 	- Forth mode
 	- Perl mode
@@ -338,6 +338,30 @@ char *Erlang_HL_keywords[] = {
         NULL
 };
 
+char *JS_HL_extensions[] = { ".js", NULL };
+char *JS_HL_keywords[] = {
+        "abstract", "arguments", "await", 
+        "boolean|", "break", "byte|",
+        "case", "catch ", "char|", "class", "const", "continue",
+        "debugger", "default", "delete", "do", "double|", 
+        "else", "enum", "eval", "export", "extends", 
+        "false", "final", "finally", "float|", "for", "function", 
+        "goto",
+        "if", "implements", "import", "in", "instanceof", "int|", "interface", 
+        "let", "long|",
+        "native", "new", "null", 
+        "package", "private", "protected", "public",
+        "return", 
+        "short|", "static", "super", "switch", "synchronized", 
+        "this", "throw", "throws", "transient", "true", "try", "typeof", 
+        "var", "void|", "volatile",
+        "while", "with", 
+        "yield", 
+        
+        NULL
+};
+
+ 
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -389,17 +413,26 @@ struct editor_syntax HLDB[] = {
 		4,
 		1
 	},
-    {
-        "Erlang",
-        Erlang_HL_extensions, 
-        Erlang_HL_keywords,
-        "%",
-        "", "",
-        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
-        4,
-        1 // TODO make bitfield?
-    }
-        
+        {
+                "Erlang",
+                Erlang_HL_extensions, 
+                Erlang_HL_keywords,
+                "%",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1 // TODO make bitfield?
+        },
+        {
+                "JavaScript",
+                JS_HL_extensions,
+                JS_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        }
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -591,7 +624,6 @@ struct command_str COMMANDS[] = {
 
 /*** undo ***/
 
-
 struct undo_str {
 	int command_key; // orginal command
 	int undo_command_key; // undo command (if need to be run)
@@ -666,7 +698,6 @@ editor_read_key() {
 	}
 
   	if (c == '\x1b') {
-  		//write(STDERR_FILENO, "|ESC|", 6); 
   		char seq[3];
   		
   		if (read(STDIN_FILENO, &seq[0], 1) != 1) return c; //'\x1b'; /* vy!c?*/
@@ -906,7 +937,6 @@ editor_update_syntax(erow *row) {
 
 		prev_sep = is_separator(c);
 
-		/* JK */
 		if (isspace(c) && i > 0 && prev_char == '.' && prev_hl == HL_NUMBER)
 			row->hl[i - 1] = HL_NORMAL; /* Denormalize sentence ending colon. */
 		prev_char = c; 
@@ -1062,7 +1092,6 @@ editor_update_row(erow *row) {
 	editor_update_syntax(row);
 }
 
-
 void
 editor_insert_row(int at, char *s, size_t len) {
 	int j; 
@@ -1113,7 +1142,6 @@ editor_del_row(int at) {
 	E.numrows--;
 	E.dirty++;
 }
-
 
 int
 editor_row_insert_char(erow *row, int at, char c) {
@@ -1278,19 +1306,6 @@ calculate_indent(erow *row) {
 	}
 
 	return no_of_chars_to_indent; 
-
-#if 0
-		/* # of new spaces + the end of row. */
-		buf = malloc(no_of_chars_to_indent + row->size - E.cx + 1);
-		if (no_of_chars_to_indent > 0) {
-			memset(buf, E.is_soft_indent ? ' ' : '\t', no_of_chars_to_indent);
-		}
-		memcpy(&buf[no_of_chars_to_indent], &row->chars[E.cx], row->size - E.cx);
-		buf[no_of_chars_to_indent + row->size - E.cx] = '\0';
-		//} 
-	} // is_auto_indent
-#endif 
-
 }
 
 int
@@ -1362,9 +1377,7 @@ editor_del_char(int undo) {
 		int orig_cx = E.cx; 
 		int char_to_be_deleted = row->chars[E.cx];
 		int len = editor_row_del_char(row, E.cx - 1);
-		
-		//E.cx -= len;
-//===
+
 		if (len > 0) {
 			int current_cx = E.cx;
 			E.cx = orig_cx;
@@ -1385,7 +1398,7 @@ editor_del_char(int undo) {
 		}
 
 		E.cx = orig_cx - len;
-//===
+
 	} else { 
 		if (! undo)
 			undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, '\r');
@@ -1515,7 +1528,6 @@ editor_save(int command_key) {
 			return; 
 		}
 	}
-
 
 	buf = editor_rows_to_string(&len);
 	fd = open(E.filename, O_RDWR | O_CREAT, 0644);
@@ -1715,9 +1727,8 @@ struct command_str *
 command_get_by_key(int command_key) {
 	unsigned int i;
 	for (i = 0; i < COMMAND_ENTRIES; i++) {
-		struct command_str *c = &COMMANDS[i];
-		if (c->command_key == command_key) 
-			return c;
+		if (COMMANDS[i].command_key == command_key) 
+			return &COMMANDS[i];
 	}
 	return NULL;
 }
@@ -1826,7 +1837,6 @@ command_move_cursor(int command_key) {
 	}
 }
 	
-
 void
 exec_command() {
 	char *command = NULL; 
@@ -1871,7 +1881,6 @@ exec_command() {
 				}
 			}
 
-			// all arg types.
 			switch (c->command_key) {
 			case COMMAND_SET_MODE:
 				if (editor_select_syntax_highlight(char_arg) == 0) { 
@@ -2025,7 +2034,6 @@ editor_find_callback(char *query, int key) {
 			break; 
 		}
 	}
-
 }
 
 void
@@ -2045,7 +2053,6 @@ editor_find() {
 		E.rowoff = saved_rowoff; 
 	}
 }
-
 
 /*** append buffer ***/
 
@@ -2119,7 +2126,6 @@ clipboard_yank_lines() {
 	editor_set_status_message("Yank lines!");
 }
 
-
 /*** output ***/
 
 /**
@@ -2177,9 +2183,6 @@ editor_draw_rows(struct abuf *ab) {
 	      			ab_append(ab, " ", 1);
 
 	      		ab_append(ab, welcome, welcomelen);
-
-	      		// Banner.
-
 	      	} else { // / 3
 				ab_append(ab, "~", 1);
 			}
@@ -2276,7 +2279,6 @@ esc_reset_all(struct abuf *ab) {
 	APPEND_ESC_PREFIX(ab);
 	ab_append(ab, "0m", 2);
 }
-
 
 void
 editor_draw_status_bar(struct abuf *ab) {
@@ -2466,10 +2468,6 @@ editor_move_cursor(int key) {
   	if (E.cx > rowlen) {
     	E.cx = rowlen;
   	}
-/*  	if (E.debug)
-  		editor_set_status_message("x.y=%d.%d / %d.%d auto=%d soft=%d", 
-  			E.cy, E.cx, E.numrows, rowlen, E.is_auto_indent, E.is_soft_indent);
-  			*/
 }
 
 int 
