@@ -51,13 +51,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <time.h>
 #include <unistd.h>
 
-
 /*** defines ***/
-
 /*
-	2017-04-24
+	2017-04-26
 	Latest: 
-	    - --version, -v 
+		- undo works, but not yet clipboard undo.
+	    - --version, -v 1,2,3 = (1= DEBUG_UNDO, 2=DEBUG_COMMANDS)
 	    - bug fix for save-* command double prompt.
 		- Erlang mode	    
 		- Work towards making every action a command: now M-x move-cursor-up|down|right|left works.
@@ -88,7 +87,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.3"
+#define KILO_VERSION "0.1.4 undo (C-u) without clipboard"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1177,35 +1176,36 @@ editor_row_append_string(erow *row, char *s, size_t len) {
 */
 int
 editor_row_del_char(erow *row, int at) {
-	int del_len = 1; /* Default del len. */
+	int len = 1; /* Default del len. */
 	int i = 0; 
 	int enough_spaces_to_the_left = 1; 
 
 	if (at < 0 || at >= row->size)
 		return 0;
 
-	if (E.is_soft_indent) {
+	if (E.is_auto_indent) {
 		if ((at+1) % E.tab_stop == 0) {
 			/* There has to be at least E.tab_stop spaces to the left of 'at'.
 				Note: start counting from TAB_STOP below & upwards. */
 			for (i = at + 1 - E.tab_stop; enough_spaces_to_the_left && i >= 0 && i < at; i++) {
-				if (row->chars[i] != ' ') {
+				if ((E.is_soft_indent && row->chars[i] != ' ')
+					|| (!E.is_soft_indent && row->chars[i] != '\t')) {
 					enough_spaces_to_the_left = 0; 
 				}
 			}
 
 			if (enough_spaces_to_the_left)
-				del_len = E.tab_stop;
+				len = E.tab_stop;
 		} else 
 			enough_spaces_to_the_left = 0; 
 	} 
 
-	memmove(&row->chars[at + 1 - del_len], &row->chars[at + 1], row->size - at + 1); 
-	row->size -= del_len;
+	memmove(&row->chars[at + 1 - len], &row->chars[at + 1], row->size - at + 1); 
+	row->size -= len;
 	editor_update_row(row);
 	E.dirty++; 
 
-	return del_len; 
+	return len; 
 }
 
 /*** editor operations ***/
@@ -1361,11 +1361,11 @@ editor_del_char(int undo) {
 	if (E.cx > 0) {
 		int orig_cx = E.cx; 
 		int char_to_be_deleted = row->chars[E.cx];
-		int deleted_chars_len = editor_row_del_char(row, E.cx - 1);
+		int len = editor_row_del_char(row, E.cx - 1);
 		
-		//E.cx -= deleted_chars_len;
+		//E.cx -= len;
 //===
-		if (deleted_chars_len > 0) {
+		if (len > 0) {
 			int current_cx = E.cx;
 			E.cx = orig_cx;
 
@@ -1373,7 +1373,8 @@ editor_del_char(int undo) {
 				E.cx = current_cx; 
 				if (! undo) {
 					if (current_cx == orig_cx) {
-						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, char_to_be_deleted);
+						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, 
+							char_to_be_deleted);
 					} else {
 						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, 
 							E.is_soft_indent ? (int) ' ' : (int) '\t');
@@ -1383,7 +1384,7 @@ editor_del_char(int undo) {
 			}
 		}
 
-		E.cx = orig_cx - deleted_chars_len;
+		E.cx = orig_cx - len;
 //===
 	} else { 
 		if (! undo)
@@ -1645,8 +1646,6 @@ undo() {
 	undo_stack = undo_stack->next; 
 
 	undo_debug_stack();
-		//editor_set_status_message("undo: cmd=%d undo_cmd=%d orig_value=%d", 
-		//	top->command_key, top->undo_command_key, top->orig_value);
 
 	switch(top->undo_command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
@@ -1737,11 +1736,15 @@ command_delete_char() {
 }
 
 void command_insert_newline() {
-	int indented_chars = editor_insert_newline();
+	int indent_len = editor_insert_newline();
+	if (E.is_auto_indent 
+		&& (indent_len % E.tab_stop == 0)) { // 1 for newline
+		indent_len = indent_len / E.tab_stop; // no of tabs, soft or hard.
+	}
 
 	// Delete indented+1 chars at once.
 	undo_push_one_int_arg(COMMAND_INSERT_CHAR, COMMAND_DELETE_INDENT_AND_NEWLINE, 
-		indented_chars + 1);
+		indent_len + 1); // newline here
 
 	if (E.debug & DEBUG_COMMANDS)
 		editor_set_status_message("Inserted newline");
