@@ -121,7 +121,7 @@ enum editor_key {
 	QUIT_KEY, // 1010
 	SAVE_KEY,
 	FIND_KEY,
-	CLEAR_MODIFICATION_FLAG_COMMAND, /* M-c */
+	CLEAR_MODIFICATION_FLAG_COMMAND, /* M-c */ // TODO -> *_KEY
 
 	/* These are more like commands.*/
 	MARK_KEY, /* Ctrl-Space */
@@ -2077,7 +2077,8 @@ ab_free(struct abuf *ab) {
 
 void
 clipboard_clear() {
-	free(C.row);
+	if (C.row != NULL)
+		free(C.row);
 	C.row = NULL; 
 	C.numrows = 0;
 	C.is_full = 0; 
@@ -2547,7 +2548,6 @@ editor_process_keypress() {
 			if (c == DEL_KEY) 
 				command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
 			command_delete_char();
-			//editor_del_char();
 			break; 
 		case PAGE_DOWN:
 		case PAGE_UP: { 
@@ -2613,11 +2613,21 @@ editor_process_keypress() {
 
 
 /*** init ***/
+void
+init_clipboard() {
+	clipboard_clear();
+}
 
 void
-init_editor() {
+init_config() {
 	/* editor config */
-	E.cx = E.cy = E.rx = E.numrows = E.rowoff = E.coloff = E.dirty = 0;
+	E.cx = 0;
+	E.cy = 0;
+	E.rx = 0;
+	E.numrows = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.dirty = 0;
 	E.row = NULL; 
 	E.filename = NULL; 
 	E.absolute_filename = NULL; 
@@ -2628,20 +2638,16 @@ init_editor() {
 	E.is_new_file = 0;
 	E.is_banner_shown = 0; 
 	E.tab_stop = DEFAULT_KILO_TAB_STOP;
-
-	/* TODO */
 	E.is_soft_indent = 0;
 	E.is_auto_indent = 0;
+	E.debug = 0; 	
+}
 
-	E.debug = 0; 
-
-	/* clipboard */
-	C.row = NULL; 
-	C.numrows = 0; 
-	C.is_full = 0; // !Ctrl-K after Ctrl-K => clipboard contents filled. New Ctrl-K & is_full => clipbord_clear().
-
-	/* undo stack */
-	init_undo_stack();
+void
+init_editor() {
+	init_config();		// E
+	init_clipboard();	// C
+	init_undo_stack();	// undo_stack
 
 	if (get_window_size(&E.screenrows, &E.screencols) == -1)
 		die("get_window_size");
@@ -2649,11 +2655,8 @@ init_editor() {
 	E.screenrows -= 2; /* Room for the status bar & status messages. */
 }
 
-int 
-main(int argc, char **argv) {
-	enable_raw_mode();
-	init_editor();
-
+void
+parse_options(int argc, char **argv) {
 	if (argc >= 3) {
 		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
 
@@ -2670,6 +2673,13 @@ main(int argc, char **argv) {
 			editor_open(argv[1]);
 		}
 	}
+}
+
+int 
+main(int argc, char **argv) {
+	enable_raw_mode();
+	init_editor();
+	parse_options(argc, argv); // also opens a file.
 
 	editor_set_status_message("Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-K copy line | Ctrl-Y paste");
 
