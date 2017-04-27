@@ -53,9 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-04-26
+	2017-04-27
 	Latest:
-            - JavaScript mode; refactoring/cleaning.         
+	    - Shell mode
+    	- JavaScript mode; refactoring/cleaning.         
 	    - undo works, but not yet clipboard undo.
 	    - --version, -v 1,2,3 = (1= DEBUG_UNDO, 2=DEBUG_COMMANDS)
 	    - bug fix for save-* command double prompt.
@@ -78,7 +79,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 		- compile based on HL mode & working diretory: make, mvn build, ant ?
 	
 	TODO modes
-	- Shell mode 
 	- Clojure mode
 	- Forth mode
 	- Perl mode
@@ -87,7 +87,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.4 undo (C-u) without clipboard"
+#define KILO_VERSION "0.1.5 undo (C-u) without clipboard"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -402,6 +402,14 @@ char *JS_HL_keywords[] = {
         NULL
 };
 
+char *Shell_HL_extensions[] = { ".sh", NULL };
+char *Shell_HL_keywords[] = {
+	// compgen -k
+	"if", "then", "else", "elif", "fi",
+	"case", "esac", "for", "select", "while", "until",
+	"do", "done", "in", "function", "time", "[[", "]]",
+	NULL
+};
  
 struct editor_syntax HLDB[] = {
 	{
@@ -473,7 +481,18 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1
+        },
+        {
+        	"Shell",
+        	Shell_HL_extensions,
+        	Shell_HL_keywords,
+        	"#",
+        	"", "",
+        	HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+        	8,
+        	1
         }
+
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
