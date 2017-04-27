@@ -55,7 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-04-27
 	Latest:
-	    - Shell mode
+	    - Shell, Perl modes
     	- JavaScript mode; refactoring/cleaning.         
 	    - undo works, but not yet clipboard undo.
 	    - --version, -v 1,2,3 = (1= DEBUG_UNDO, 2=DEBUG_COMMANDS)
@@ -81,13 +81,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO modes
 	- Clojure mode
 	- Forth mode
-	- Perl mode
 	- other modes 
 	TODO Unicode support (from ncurses?)
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.5 undo (C-u) without clipboard"
+#define KILO_VERSION "0.1.6 | erl, c, java, js, makefile, pl, py, sh"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -410,6 +409,64 @@ char *Shell_HL_keywords[] = {
 	"do", "done", "in", "function", "time", "[[", "]]",
 	NULL
 };
+
+char *Perl_HL_extension[] = { ".pl", ".perl", NULL };
+char *Perl_HL_keywords[] = {
+	/* Perl functions. */
+	"-A", "-B", "-b", "-C", "-c", "-d", "-e", "-f", "-g", "-k", "-l", "-M", "-O", "-o", 
+	"-p", "-r" "-R", "-S", "-s", "-T", "-t", "-u", "-w", "-W", "-X", "-x", "-z",
+
+	"abs", "accept", "alarm", "atan2", "AUTOLOAD", 
+	"BEGIN", "bind", "binmode", "bless", "break", 
+	"caller", "chdir", "CHECK", "chmod", "chomp", "chop", "chown", "chr", "chroot",
+	"close", "closedir", "connect", "cos", "crypt", 
+	"dbmclose", "defined", "delete", "DESTROY", "die", "dump", 
+	"each", "END", "endgrent", "endhostent", "endnetent", "endprotoent", "endpwent",
+	"endservent", "eof", "eval", "exec", "exists", "exit", 
+	"fcntl", "fileno", "flock", "fork", "format", "formline", 
+	"getc", "getgrent", "getgrgid", "getgrnam", "gethostbyaddr", "gethostbyname",
+	"gethostent", "getlogin", "getnetbyaddr", "getnetbyname", "getnetent", 
+	"getpeername", "getpgrp", "getppid", "getpriority", "getprotobyname", 
+	"getprotobynumber", "getprotoent", "getpwent", "getpwnam", "getpwuid", 
+	"getservbyport", "getservent", "getsockname", "getsockopt", "glob", "gmtime", 
+	"goto", "grep", 
+	"hex",
+	"index",
+	"INIT", "int", "ioctl", 
+	"join",
+	"keys", "kill",
+	"last", "lc", "lcfirst", "length", "link", "listen", "local", "localtime", 
+	"log", "lstat",  
+	"map", "mkdir", "msgctl", "msgget", "msgrcv", "msgsnd", "my",
+	"next", "not",
+	"oct", "open", "opendir", "ord", "our", 
+	"pack", "pipe", "pop", "pos", "print", "printf", "prototype", "push",
+	"quotemeta", 
+	"rand", "read", "readdir", "readline", "readlink", "readpipe", "recv",
+	"redo", "ref", "rename", "require", "reset", "return", "reverse", "rewinddir", 
+	"rindex", "rmdir", 
+	"say", "scalar", "seek", "seekdir", "select", "semctl", "semget", "semop", 
+	"send", "setgrent", "sethostent", "setnetent", "setpgrp", "setpriority", 
+	"setprotoent", "setpwent", "setservent", "setsockopt", "shift", 
+	"shmctl", "shmget", "shmread", "shmwrite", "shutdown", "sin", "sleep",
+	"socket", "socketpair", "sort", "splice", "split", "sprintf", "sqrt", "srand",
+	"stat", "state", "study", "substr", "symlink", "syscall", "sysopen", "sysread",
+	"sysseek", "system", "syswrite", 
+	"tell", "telldir", "tie", "tied", "time", "times", "truncate", 
+	"uc", "ucfirst", "umask", "undef", "UNITCHECK", "unlink", "unpack", "unshift",
+	"untie", "use", "utime",
+	"values", "vec", "wait", "waitpid", "wantarray", "warn", "write",
+
+	/* Perl syntax */
+
+	"__DATA__", "__END__", "__FILE__", "__LINE__", "__PACKAGE__", 
+	"and", "cmp", "continue", "CORE", "do", "else", "elsif", "eq", "exp", 
+	"for", "foreach", "ge", "gt", "if", "le", "lock", "lt", 
+	"m", "ne", "no", "or", "package", "q", "qq", "qr", "qw", "qx", 
+	"s", "sub", "tr", "unless", "until", "while", "xor", "y",
+
+	NULL
+};
  
 struct editor_syntax HLDB[] = {
 	{
@@ -490,6 +547,16 @@ struct editor_syntax HLDB[] = {
         	"", "",
         	HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
         	8,
+        	1
+        },
+        {
+        	"Perl", 
+        	Perl_HL_extension,
+        	Perl_HL_keywords,
+        	"#", 
+        	"", "", /* ^= ^= comments missing */
+        	HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+        	4,
         	1
         }
 
