@@ -53,8 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-04-27
+	2017-04-30
 	Latest:
+		- Basically, limit input to ASCII only in command_insert_character().
+
 	    - Shell, Perl modes
     	- JavaScript mode; refactoring/cleaning.         
 	    - undo works, but not yet clipboard undo.
@@ -1862,6 +1864,9 @@ command_get_by_key(int command_key) {
 
 void
 command_insert_char(int character) {
+	if (character <= 31) // No more control characters. But then, only ascii.
+		return; 
+
 	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
 	editor_insert_char(character);
 }
