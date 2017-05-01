@@ -2862,7 +2862,7 @@ init_editor() {
 	E.screenrows -= 2; /* Room for the status bar & status messages. */
 }
 
-#define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii\r\n" \
+#define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii.\r\n" \
  	"Basic Commands:\r\n" \
 	"\tCtrl-Q quit\r\n" \
 	"\tCtrl-F find\r\n" \
