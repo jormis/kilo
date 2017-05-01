@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-05-01
 	Latest:
+		- Ruby mode
 	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
 	 	- help
 		- Basically, limit input to ASCII only in command_insert_character().
@@ -74,7 +75,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2" // undo & modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.2.1" // undo & modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -398,7 +399,7 @@ char *Shell_HL_keywords[] = {
 	NULL
 };
 
-char *Perl_HL_extension[] = { ".pl", ".perl", NULL };
+char *Perl_HL_extensions[] = { ".pl", ".perl", NULL };
 char *Perl_HL_keywords[] = {
 	/* Perl functions. */
 	"-A", "-B", "-b", "-C", "-c", "-d", "-e", "-f", "-g", "-k", "-l", "-M", "-O", "-o", 
@@ -455,6 +456,29 @@ char *Perl_HL_keywords[] = {
 
 	NULL
 };
+
+char *Ruby_HL_extensions[] = { ".rb", NULL };
+char *Ruby_HL_keywords[] = {
+        "__ENCODING__", "__LINE__", "__FILE__", "BEGIN", "END", 
+        "alias", "and", "begin", "break", 
+        "case", "class", 
+        "def", "defined?", "do", 
+        "else", "elsif", "end", "ensure", 
+        "false", "for",
+        "if", "in", 
+        "module", 
+        "next", "nil", "not",
+        "or", 
+        "redo", "rescue", "retry", "return", 
+        "self", "super", 
+        "then", "true", 
+        "undef", "unless", "until", 
+        "when", "while",
+        "yield", 
+        
+   
+    NULL
+}; 
  
 struct editor_syntax HLDB[] = {
 	{
@@ -539,13 +563,23 @@ struct editor_syntax HLDB[] = {
         },
         {
         	"Perl", 
-        	Perl_HL_extension,
+        	Perl_HL_extensions,
         	Perl_HL_keywords,
         	"#", 
         	"", "", /* ^= ^= comments missing */
         	HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
         	4,
         	1
+        },
+        {
+                "Ruby",
+                Ruby_HL_extensions, 
+                Ruby_HL_keywords,
+                "#",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
         }
 
 };
@@ -749,7 +783,6 @@ struct undo_str {
 	struct undo_str *next; // Because of stack.
 };
 
-// TODO Create an undo stack.
 struct undo_str *undo_stack;  
 
 /*** prototypes ***/
@@ -764,8 +797,8 @@ void undo_push_simple(int command_key, int undo_command_key);
 void undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value);
 void undo_clipboard_kill_lines(struct clipboard *copy); 
 struct clipboard *clone_clipboard();
-/*** terminal ***/
 
+/*** terminal ***/
 void 
 die(const char *s) {
 	/* Clear the screen. */
@@ -798,7 +831,7 @@ enable_raw_mode() {
 	raw.c_cflag |= (CS8);
 	raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 	raw.c_cc[VMIN] = 0;
-	raw.c_cc[VTIME] = 2; /* 1 -> 2 (200ms) so we can catch <esc>V better. */
+	raw.c_cc[VTIME] = 4; /* 4 = 400ms so we can catch <esc>-<key> better. */
 
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
 		die ("tcsetattr");
@@ -870,8 +903,7 @@ get_cursor_position(int *rows, int *cols) {
   	unsigned int i = 0;
   	
   	if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) 
-  		return -1;
-  	
+  		return -1;	
   	/*
   		The reply is an escape sequence! It’s an escape character (27), 
   		followed by a [ character, and then the actual response: 24;80R, 
@@ -1172,7 +1204,6 @@ editor_row_rx_to_cx(erow *row, int rx) {
 
 		if (cur_rx > rx)
 			return cx; 
-
 	}
 
 	return cx; 
@@ -1263,7 +1294,6 @@ int
 editor_row_insert_char(erow *row, int at, char c) {
 	int insert_len = 0;
 	int i = 0; 
-	//int old_at = at; 
 	int no_of_spaces = 0;
 
 	if (at < 0 || at > row->size) 
@@ -1271,9 +1301,9 @@ editor_row_insert_char(erow *row, int at, char c) {
 
 	if (c == '\t' && E.is_soft_indent) {
 		/* 
-			Calculate the number of spaces until the next tab stop. 
-			Add E.tab_stop number of spaces if we are at the stop.
-		*/
+		 * Calculate the number of spaces until the next tab stop. 
+		 * Add E.tab_stop number of spaces if we are at the stop.
+		 */
 		no_of_spaces = E.tab_stop - (at % E.tab_stop);
 		if (no_of_spaces == 0)
 			no_of_spaces = E.tab_stop;
@@ -1293,15 +1323,8 @@ editor_row_insert_char(erow *row, int at, char c) {
 		row->chars[at++] = c;
 	} 
 
-	editor_update_row(row); 
-	
+	editor_update_row(row); 	
 	E.dirty++; 
-
-/*
-	editor_set_status_message("cy.cx=%d.%d t=%d, soft=%s: '%c', %d -> %d (at mod ts = %d), insert_len = %d", 
-			E.cy, at, E.tab_stop, (E.is_soft_indent ? "on" : "off"), c, old_at, at, 
-			(old_at % E.tab_stop == 0 ? E.tab_stop : old_at % E.tab_stop), insert_len);
-*/
 	return insert_len;
 }
 
@@ -1869,8 +1892,8 @@ command_get_by_key(int command_key) {
 
 void
 command_insert_char(int character) {
-	if (character <= 31) // No more control characters. But then, only ascii.
-		return; 
+	if (character <= 31 && character != 9) // TODO 9 = TABKEY
+		return;
 
 	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);
 	editor_insert_char(character);
@@ -1883,7 +1906,8 @@ command_delete_char() {
 	command_debug(COMMAND_DELETE_CHAR);
 }
 
-void command_insert_newline() {
+void 
+command_insert_newline() {
 	int indent_len = editor_insert_newline();
 	if (E.is_auto_indent 
 		&& (indent_len % E.tab_stop == 0)) { // 1 for newline
@@ -2710,8 +2734,6 @@ editor_process_keypress() {
 	/* Clipboard full after the first non-KILL_LINE_KEY. */
 	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY) {
 		C.is_full = 1; 
-		// Add clipboard to the undo stack.
-		// copy clipboard. Add undo_str entry.
 		undo_push_clipboard();
 	}
 
@@ -2884,7 +2906,7 @@ init_editor() {
 	"\tsave-buffer-as, undo, set-mode\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
-	"C, Erlang, Java, JavaScript, Makefile, Perl, Python, Shell scripts & Text.\r\n"
+	"C, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell scripts & Text.\r\n"
 
 void 
 display_help() {
