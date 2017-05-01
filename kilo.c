@@ -53,42 +53,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-04-30
+	2017-05-01
 	Latest:
+	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
+	 	- help
 		- Basically, limit input to ASCII only in command_insert_character().
 
-	    - Shell, Perl modes
-    	- JavaScript mode; refactoring/cleaning.         
-	    - undo works, but not yet clipboard undo.
-	    - --version, -v 1,2,3 = (1= DEBUG_UNDO, 2=DEBUG_COMMANDS)
-	    - bug fix for save-* command double prompt.
-		- Erlang mode	    
-		- Work towards making every action a command: now M-x move-cursor-up|down|right|left works.
-		- Auto-indent (2017-04-20)
-			- Python, Makefile: use of ':' for more proper auto-indenting
-
-	TODO Undo functionality 
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
-	TODO Store te last command argument context-sensitively
+	TODO Store the last command argument context-sensitively
 	TODO 	- Emacs style C-K or C-SPC & C/M-W
 	TODO Proper command line options
 	TODO *Help* mode
 	TODO Multiple buffers
 	TODO- *Command* or *Shell* buffer (think of REPL) 
 	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
-		- compile based on HL mode & working diretory: make, mvn build, ant ?
-	
-	TODO modes
-	- Clojure mode
-	- Forth mode
-	- other modes 
+		- compile based on HL mode & working diretory: make, mvn build, ant ?	
 	TODO Unicode support (from ncurses?)
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "0.1.6 | erl, c, java, js, makefile, pl, py, sh"
+#define KILO_VERSION "kilo -- a simple editor version 0.2" // undo & modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -759,7 +745,7 @@ struct undo_str {
 	int cx; 
 	int cy;
 	int orig_value; // set-tabs, auto-indent
-	struct clipboard_str *clipboard; // kill, yank
+	struct clipboard *clipboard; // kill, yank
 	struct undo_str *next; // Because of stack.
 };
 
@@ -776,7 +762,8 @@ struct command_str *command_get_by_key(int command_key);
 void command_move_cursor(int command_key);
 void undo_push_simple(int command_key, int undo_command_key);
 void undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value);
-
+void undo_clipboard_kill_lines(struct clipboard *copy); 
+struct clipboard *clone_clipboard();
 /*** terminal ***/
 
 void 
@@ -1774,6 +1761,20 @@ undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value) {
 }
 
 void
+undo_push_clipboard() {
+	if (undo_stack == NULL)
+		init_undo_stack();
+
+	struct clipboard *copy = clone_clipboard();
+
+	struct undo_str *undo = alloc_and_init_undo(COMMAND_KILL_LINE);
+	undo->undo_command_key = COMMAND_YANK_CLIPBOARD; 
+	undo->clipboard = copy; 
+	undo->orig_value = -999; 
+	undo_debug_stack(); 
+}
+
+void
 undo() {
 	if (undo_stack == NULL) {
 		init_undo_stack();
@@ -1829,6 +1830,10 @@ undo() {
 			editor_del_char(1);
 		break; 
 		}
+	case COMMAND_YANK_CLIPBOARD:
+		undo_clipboard_kill_lines(top->clipboard);
+		free(top->clipboard->row);
+		free(top->clipboard);
 	default:
 		break; 
 	}
@@ -2223,6 +2228,7 @@ clipboard_clear() {
 	C.is_full = 0; 
 }
 
+
 void
 clipboard_add_line_to_clipboard() {
 	if (E.cy < 0 || E.cy >= E.numrows)
@@ -2256,6 +2262,74 @@ clipboard_yank_lines() {
 	}
 
 	editor_set_status_message("Yank lines!");
+}
+
+
+void
+undo_clipboard_kill_lines(struct clipboard *copy) { 
+	int j = 0; 
+
+	if (copy == NULL) {
+		editor_set_status_message("Unable to undo kill lines.");
+		return;
+	}
+	
+	for (j = 0; j < copy->numrows; j++) {
+			editor_insert_row(E.cy++, copy->row[j].row, copy->row[j].size);		
+	}
+
+	E.cx = copy->row[copy->numrows-1].orig_x;
+	E.cy = copy->row[copy->numrows-1].orig_y; 
+
+	editor_set_status_message("Undo kill lines!");
+}
+#if 0
+typedef struct clipboard_row {
+	char *row; 
+	int size; 
+	int orig_x; 
+	int orig_y; 
+	int is_eol; 
+} clipboard_row; 
+
+struct clipboard {
+	int is_full; 
+	int numrows;
+	clipboard_row *row; 
+}; 
+
+struct clipboard C; 
+#endif
+
+struct clipboard *
+clone_clipboard() {
+	int i = 0;
+	struct clipboard *copy = malloc(sizeof(struct clipboard));
+	if (copy == NULL) {
+		editor_set_status_message("Failed to create clipboard to the undo stack.");
+		return NULL; 
+	}
+
+	copy->is_full = 1; 
+	copy->numrows = C.numrows;
+	copy->row = malloc(C.numrows * sizeof(struct clipboard_row));
+	if (copy->row == NULL) {
+		editor_set_status_message("Failed to create clipboard rows to the undo stack.");
+		return NULL; 
+	}
+
+	for (i = 0; i < C.numrows; i++) {
+		clipboard_row *from = &C.row[i]; 
+		clipboard_row *to = &copy->row[i];
+		to->row = malloc(from->size);
+		memcpy(to->row, from->row, from->size);
+		to->size = from->size; 
+		to->orig_x = from->orig_x;
+		to->orig_y = from->orig_y;
+		to->is_eol = from->is_eol;
+	}
+
+	return copy; 
 }
 
 /*** output ***/
@@ -2302,7 +2376,7 @@ editor_draw_rows(struct abuf *ab) {
 				int padding = 0;
 	      		char welcome[80];
     	  		int welcomelen = snprintf(welcome, sizeof(welcome),
-        			"Kilo editor -- version %s", KILO_VERSION);
+        			"%s", KILO_VERSION);
       			if (welcomelen > E.screencols) 
       				welcomelen = E.screencols;
       		
@@ -2634,8 +2708,12 @@ editor_process_keypress() {
 	int c = editor_normalize_key(editor_read_key());
 
 	/* Clipboard full after the first non-KILL_LINE_KEY. */
-	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY)
+	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY) {
 		C.is_full = 1; 
+		// Add clipboard to the undo stack.
+		// copy clipboard. Add undo_str entry.
+		undo_push_clipboard();
+	}
 
 	previous_key = c; 
 
@@ -2643,8 +2721,7 @@ editor_process_keypress() {
 
 	switch (c) {
 		case '\r':
-			command_insert_newline();
-			//editor_insert_newline(); 
+			command_insert_newline(); 
 			break;
 		case QUIT_KEY:
 			if (E.dirty && quit_times > 0) {
@@ -2785,6 +2862,36 @@ init_editor() {
 	E.screenrows -= 2; /* Room for the status bar & status messages. */
 }
 
+#define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii\r\n" \
+ 	"Basic Commands:\r\n" \
+	"\tCtrl-Q quit\r\n" \
+	"\tCtrl-F find\r\n" \
+	"\tCtrl-S save\r\n" \
+	"\tCtrl-K kill/copy full line to clipboard\r\n" \
+	"\tCtrl-Y yank clipboard\r\n" \
+	"\tCtrl-U undo\r\n" \
+	"\r\n" \
+	"Movement:\r\n" \
+	"\tArrow keys\r\n" \
+	"\tPage Down/Ctrl-V Page Down\r\n" \
+	"\tPage Up/Esc-V Page Up\r\n" \
+	"\tHome/Ctrl-A Beginning of line\r\n" \
+	"\tEnd/Ctrl-E End of line\r\n" \
+	"\r\n" \
+	"Esc-C clears the modification flag.\r\n" \
+	"Esc-X <command>:\r\n" \
+	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
+	"\tsave-buffer-as, undo, set-mode\r\n" \
+	"\r\n" \
+	"The supported higlighted file modes are:\r\n" \
+	"C, Erlang, Java, JavaScript, Makefile, Perl, Python, Shell scripts & Text.\r\n"
+
+void 
+display_help() {
+	printf(KILO_VERSION);
+	printf(KILO_HELP);
+}
+
 void
 parse_options(int argc, char **argv) {
 	if (argc >= 3) {
@@ -2797,7 +2904,10 @@ parse_options(int argc, char **argv) {
 		} 
 	} else if (argc >= 2) {
 		if (!strcmp(argv[1], "-v") || !strcmp(argv[1], "--version")) {
-			printf("kilo, a simple editor -- version %s\r\n", KILO_VERSION);
+			printf("%s\r\n", KILO_VERSION);
+			exit(0);
+		} else if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
+			display_help();
 			exit(0);
 		} else {
 			editor_open(argv[1]);
