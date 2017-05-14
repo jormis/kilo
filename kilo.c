@@ -312,7 +312,7 @@ char *Python_HL_keywords[] = {
 char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", NULL };
 char *Text_HL_keywords[] = { NULL };
 
-char *Makefile_HL_extensions[] = { "Makefile", "makefile", NULL };
+char *Makefile_HL_extensions[] = { "Makefile", "makefile", "mk", ".mmk", NULL };
 char *Makefile_HL_keywords[] = { NULL };
 
 char *Erlang_HL_extensions[] = { ".erl", NULL };
@@ -479,6 +479,39 @@ char *Ruby_HL_keywords[] = {
    
     NULL
 }; 
+
+char *PHP_HL_extensions[] = { ".php", NULL };
+char *PHP_HL_keywords[] = {
+        "__halt_compiler", 
+        "abstract", "and", "array", "as", 
+        "break", 
+        "callable", "case", "catch", "class", "clone", "const", "continue",
+        "declare", "default", "die", "do", 
+        "echo", "else", "elseif", "empty", "enddeclare", "endfor", 
+        "endforeach", "endif", "endswitch", "endwhile", "eval", "exit", 
+        "extends", 
+        "final", "finally", "for", "foreach", "function", 
+        "global", "goto", 
+        "if", "implements", "include", "include_once", "instanceof",
+        "insteadof", "interface", "isset", 
+        "list", 
+        "namespace", "new", 
+        "or",
+        "print", "private", "protected", "public", 
+        "require", "require_once", "return", 
+        "static", "switch", 
+        "throw", "trait", "try", 
+        "unset", "use", 
+        "var", 
+        "while", 
+        "xor",
+        "yield",
+        
+        "__CLASS__", "__DIR__", "__FILE__", "__FUNCTION__", "__LINE__", 
+        "__METHOD__", "__NAMESPACE__", "__TRAIT__",
+        
+        NULL
+};
  
 struct editor_syntax HLDB[] = {
 	{
@@ -577,6 +610,16 @@ struct editor_syntax HLDB[] = {
                 Ruby_HL_keywords,
                 "#",
                 "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "PHP",
+                PHP_HL_extensions, 
+                PHP_HL_keywords,
+                "//", // TODO also '#'
+                "/*", "*/",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1
