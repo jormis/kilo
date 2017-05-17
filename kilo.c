@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-01
+	2017-05-17
 	Latest:
+                - Elm mode
 		- Ruby mode
 	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
 	 	- help
@@ -75,7 +76,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2.1" // undo & modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.2.2" // elm mode, undo & other modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -480,6 +481,17 @@ char *Ruby_HL_keywords[] = {
     NULL
 }; 
 
+/* https://guide.elm-lang.org */
+char *Elm_HL_extensions[] = { ".elm", NULL };
+char *Elm_HL_keywords[] = {
+        "if", "then", "else", "case", "of", "let", "in", "type", 
+        /* Maybe not 'where' */
+        "module", "where", "import", "exposing", "as", "port",
+        "infix", "infixl", "infixr", 
+        
+        NULL
+};  
+
 char *PHP_HL_extensions[] = { ".php", NULL };
 char *PHP_HL_keywords[] = {
         "__halt_compiler", 
@@ -623,6 +635,16 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1
+        },
+        {
+                "Elm",
+                Elm_HL_extensions,
+                Elm_HL_keywords,
+                "--",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1                
         }
 
 };
@@ -2949,7 +2971,7 @@ init_editor() {
 	"\tsave-buffer-as, undo, set-mode\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
-	"C, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell scripts & Text.\r\n"
+	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n"
 
 void 
 display_help() {
