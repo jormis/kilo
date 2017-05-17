@@ -1496,7 +1496,17 @@ calculate_indent(erow *row) {
 						iter = 0; /* non-SPC terminates. */
 					}
 				}				
-			}
+			} else if (!strcasecmp(E.syntax->filetype, "Elm")) {
+                                iter = 1;
+                                for (i = E.cx-1; iter && i >= 0; i--) {
+                                        if (row->chars[i] == '=') {
+                                                no_of_chars_to_indent += E.tab_stop;
+                                                iter = 0;
+                                        } else if (!isspace(row->chars[i])) {
+                                                iter = 0; 
+                                        }
+                                }                                
+                        }
 		} else if (!E.is_soft_indent
 		 		&& !strcasecmp(E.syntax->filetype, "Makefile")) {
 			iter = 1; 
