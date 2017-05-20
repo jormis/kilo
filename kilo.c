@@ -53,14 +53,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-17
+	2017-05-20
 	Latest:
-                - Elm mode
+                - fixed cursor left movement bug when past screen length.
+                - --debug 4 debugs cursor & screen position 
+                - Elm mode (incomplete but we'll get there)
 		- Ruby mode
 	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
 	 	- help
 		- Basically, limit input to ASCII only in command_insert_character().
 
+        TODO Stop find and stay at the stop point. (Ctrl-G?)
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
@@ -76,13 +79,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2.2" // elm mode, undo & other modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.2.3" // elm mode, undo & other modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
 
 #define DEBUG_UNDOS (1<<0)
 #define DEBUG_COMMANDS (1<<1)
+#define DEBUG_CURSOR (1<<2) 
 
 /**
 	The CTRL_KEY macro bitwise-ANDs a character with the value 00011111, in binary. 
@@ -979,9 +983,9 @@ get_cursor_position(int *rows, int *cols) {
   		the R character.
   	*/
   	while (i < sizeof(buf) - 1) {
-	    if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
-    	if (buf[i] == 'R') break;
-    	i++;
+                if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+                if (buf[i] == 'R') break;
+                i++;
   	}
   	
   	/*
@@ -2382,23 +2386,6 @@ undo_clipboard_kill_lines(struct clipboard *copy) {
 
 	editor_set_status_message("Undo kill lines!");
 }
-#if 0
-typedef struct clipboard_row {
-	char *row; 
-	int size; 
-	int orig_x; 
-	int orig_y; 
-	int is_eol; 
-} clipboard_row; 
-
-struct clipboard {
-	int is_full; 
-	int numrows;
-	clipboard_row *row; 
-}; 
-
-struct clipboard C; 
-#endif
 
 struct clipboard *
 clone_clipboard() {
@@ -2619,10 +2606,24 @@ editor_draw_status_bar(struct abuf *ab) {
 	ab_append(ab, "\r\n", 2); 
 }
 
+
+void 
+debug_cursor() {
+	char cursor[80];
+	snprintf(cursor, sizeof(cursor), "cx=%d rx=%d cy=%d coloff=%d screencols=%d", 
+		E.cx, E.rx, E.cy, E.coloff, E.screencols);
+	editor_set_status_message(cursor); 
+}
+
 void
 editor_draw_message_bar(struct abuf *ab) {
 	int msglen; 
 	ab_append(ab, "\x1b[K", 3); 
+
+        if (E.debug & DEBUG_CURSOR) {
+        	debug_cursor();
+        }
+
 	msglen = strlen(E.statusmsg); 
 	if (msglen > E.screencols)
 		msglen = E.screencols; 
@@ -2744,6 +2745,9 @@ editor_move_cursor(int key) {
     case ARROW_LEFT:
     	if (E.cx != 0) {
       		E.cx--;
+      		if (E.coloff > 0)
+      			E.coloff--;
+
     	} else if (E.cy > 0) {
         	E.cy--;
        		E.cx = E.row[E.cy].size;
