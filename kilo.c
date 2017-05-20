@@ -55,15 +55,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-05-20
 	Latest:
-                - fixed cursor left movement bug when past screen length.
-                - --debug 4 debugs cursor & screen position 
-                - Elm mode (incomplete but we'll get there)
+
+		- When aborted, the find command stops at the position.
+       	- fixed cursor left movement bug when past screen length.
+        - --debug 4 debugs cursor & screen position 
+        - Elm mode (incomplete but we'll get there)
 		- Ruby mode
 	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
 	 	- help
 		- Basically, limit input to ASCII only in command_insert_character().
 
-        TODO Stop find and stay at the stop point. (Ctrl-G?)
+	TODO split kilo.c to multiple source files. 
+	TODO Open file (C-x C-f)
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
@@ -79,7 +82,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2.3" // elm mode, undo & other modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.2.4" // elm mode, undo & other modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -114,7 +117,7 @@ enum editor_key {
 	QUIT_KEY, // 1010
 	SAVE_KEY,
 	FIND_KEY,
-	CLEAR_MODIFICATION_FLAG_COMMAND, /* M-c */ // TODO -> *_KEY
+	CLEAR_MODIFICATION_FLAG_KEY, /* M-c */ // TODO -> *_KEY
 
 	/* These are more like commands.*/
 	MARK_KEY, /* Ctrl-Space */
@@ -125,7 +128,8 @@ enum editor_key {
 	YANK_KEY, /* Ctrl-Y */
 	COMMAND_KEY, /* M-x */
 	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
-	COMMAND_INSERT_NEWLINE /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
+	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
+        ABORT_KEY /* Ctrl-G */
 };
 
 /*
@@ -923,7 +927,7 @@ editor_read_key() {
   		if (seq[0] == 'v' || seq[0] == 'V') { 
   			return PAGE_UP; 
   		} else if (seq[0] == 'c' || seq[0] == 'C') {
-  			return CLEAR_MODIFICATION_FLAG_COMMAND; 
+  			return CLEAR_MODIFICATION_FLAG_KEY; 
   		} else if (seq[0] == 'x' || seq[0] == 'X') {
   			return COMMAND_KEY; 
   		}
@@ -2241,6 +2245,9 @@ editor_find_callback(char *query, int key) {
 		direction = 1; 
 	} else if (key == ARROW_DOWN || key == ARROW_UP) {
 		direction = -1; 
+	/* } else if (key == ABORT_KEY) {
+		last_command_was_aborted = 1; 
+		return; */
 	} else {
 		last_match = -1;
 		direction = 1; 
@@ -2278,19 +2285,24 @@ editor_find_callback(char *query, int key) {
 
 void
 editor_find() {
+	/*
 	int saved_cx = E.cx; 
 	int saved_cy = E.cy; 
 	int saved_coloff = E.coloff; 
 	int saved_rowoff = E.rowoff;
-
+*/
 	char *query = editor_prompt("Search: %s (Use ESC/Arrows/Enter)", editor_find_callback); 
 	if (query) {
 		free(query);
 	} else {
-		E.cx = saved_cx;
-		E.cy = saved_cy; 
-		E.coloff = saved_coloff; 
-		E.rowoff = saved_rowoff; 
+		
+		// Leave us at the last find position.
+		/* else {
+			E.cx = saved_cx;
+			E.cy = saved_cy; 
+			E.coloff = saved_coloff; 
+			E.rowoff = saved_rowoff;
+		} */
 	}
 }
 
@@ -2702,6 +2714,11 @@ editor_prompt(char *prompt, void (*callback) (char *, int)) {
 		editor_refresh_screen();
 
 		c = editor_read_key();
+		
+		/*if (c == CTRL_KEY('q')) {
+			last_command_was_aborted = 1;
+			free(buf);
+		} else */
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) 
 				buf[--buflen] = '\0';
@@ -2799,7 +2816,8 @@ editor_normalize_key(int c) {
 		c = FIND_KEY;
 	else if (c == CTRL_KEY('u'))
 		c = COMMAND_UNDO_KEY;
-
+	else if (c == CTRL_KEY('g'))
+		c = ABORT_KEY;
 	return c; 
 }
 
@@ -2899,7 +2917,7 @@ editor_process_keypress() {
       	case YANK_KEY:
       		clipboard_yank_lines(); 
       		break;
-      	case CLEAR_MODIFICATION_FLAG_COMMAND:
+      	case CLEAR_MODIFICATION_FLAG_KEY:
       		if (E.dirty) {
       			editor_set_status_message("Modification flag cleared.");
       			E.dirty = 0;
