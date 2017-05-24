@@ -697,7 +697,11 @@ enum command_key {
 	COMMAND_INSERT_CHAR, /* for undo */
 	COMMAND_DELETE_CHAR, /* for undo */
 	COMMAND_DELETE_INDENT_AND_NEWLINE, /* for undo only */
-        COMMAND_GOTO_LINE /* TODO */
+        COMMAND_GOTO_LINE, /* TODO */
+        COMMAND_CREATE_BUFFER,
+        COMMAND_SWITCH_BUFFER,
+        COMMAND_DELETE_BUFFER,
+        COMMAND_NEXT_BUFFER /* Ctrl-N? */
 };
 
 enum command_arg_type {
@@ -718,6 +722,39 @@ struct command_str {
 
 /* M-x "command-str" <ENTER> followed by an optional argument (INT or STRING). */ 
 struct command_str COMMANDS[] = {
+        {
+                COMMAND_CREATE_BUFFER,
+                "create-buffer",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "Buffer created.",
+                NULL
+        },
+        {
+                COMMAND_SWITCH_BUFFER,
+                "switch-buffer",
+                COMMAND_ARG_TYPE_STRING,
+                "Buffer: %s",
+                "Buffer created.",
+                "Failed to switch to buffer: '%s'"
+        },
+        {
+                COMMAND_DELETE_BUFFER,
+                "delete-buffer",
+                COMMAND_ARG_TYPE_STRING,
+                "Delete buffer: %s",
+                "Buffer deleted.",
+                "Failed to delete buffer: '%s'"
+        },
+        {
+                COMMAND_NEXT_BUFFER,
+                "next-buffer",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "Switched to next buffer.",
+                NULL
+        },
+      
 	{
 		COMMAND_SET_MODE,
 		"set-mode",
