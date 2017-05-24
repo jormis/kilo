@@ -2092,6 +2092,8 @@ command_get_by_key(int command_key) {
 	return NULL;
 }
 
+
+
 void
 command_insert_char(int character) {
 	if (character <= 31 && character != 9) // TODO 9 = TABKEY
@@ -2202,7 +2204,27 @@ command_move_cursor(int command_key) {
 
 void
 command_goto_line() {
-
+        int int_arg = 0;
+        char *char_arg = NULL;
+        
+	struct command_str *c = command_get_by_key(COMMAND_GOTO_LINE);
+	if (c == NULL)
+                return;
+                        
+        int rc = editor_get_command_argument(c, &int_arg, &char_arg);
+        if (rc == 0) {
+                editor_set_status_message(STATUS_MESSAGE_ABORTED);
+                free(char_arg);
+                return;
+        } else if (rc == -1) {
+                editor_set_status_message(c->error_status, char_arg);
+                free(char_arg); 
+        }
+        
+        if (int_arg >= 0 && int_arg < E.numrows) 
+                E.cy = int_arg;
+                
+        free(char_arg);       
 }
 	
 void
@@ -3142,7 +3164,7 @@ init_editor() {
 	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command>:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
-	"\tsave-buffer-as, undo, set-mode, goto-line\r\n" \
+	"\tsave-buffer-as, undo, set-mode, goto-line (Ctrl-G)\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n"
