@@ -2206,6 +2206,7 @@ void
 command_goto_line() {
         int int_arg = 0;
         char *char_arg = NULL;
+        int current_cy = E.cy;
         
 	struct command_str *c = command_get_by_key(COMMAND_GOTO_LINE);
 	if (c == NULL)
@@ -2224,7 +2225,8 @@ command_goto_line() {
         if (int_arg >= 0 && int_arg < E.numrows) 
                 E.cy = int_arg;
                 
-        free(char_arg);       
+        free(char_arg); 
+        undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, current_cy);
 }
 	
 void
@@ -2345,8 +2347,10 @@ exec_command() {
 				command_insert_newline();
 				break;
                         case COMMAND_GOTO_LINE:
-                                if (int_arg >= 0 && int_arg < E.numrows) 
+                                if (int_arg >= 0 && int_arg < E.numrows) {
+                                        undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, E.cy);
                                         E.cy = int_arg;
+                                }
                                 break;                                 
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
