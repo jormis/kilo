@@ -53,36 +53,39 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-20
+	2017-05-24
 	Latest:
-
-		- When aborted, the find command stops at the position.
+        - M-x goto-line
+	- When aborted, the find command stops at the position.
        	- fixed cursor left movement bug when past screen length.
         - --debug 4 debugs cursor & screen position 
         - Elm mode (incomplete but we'll get there)
-		- Ruby mode
-	 	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
-	 	- help
-		- Basically, limit input to ASCII only in command_insert_character().
+	- Ruby mode
+	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
+	- help (-h, --help)
+	- Basically, limit input to ASCII only in command_insert_character().
 
+        TODO M-x goto-beginning, goto-end (of file)
+	TODO Open file (C-x C-f) 
+	TODO Multiple buffers
+             - new buffer, delete buffer, switch buffer
+	TODO *Help* mode
 	TODO split kilo.c to multiple source files. 
-	TODO Open file (C-x C-f)
+	TODO *Command* or *Shell* buffer (think of REPL) 
+	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
+        TODO search-and-replace
+	TODO Unicode support (-ncurses)
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
 	TODO Store the last command argument context-sensitively
-	TODO 	- Emacs style C-K or C-SPC & C/M-W
+	TODO Emacs style C-K or C-SPC & C/M-W
 	TODO Proper command line options
-	TODO *Help* mode
-	TODO Multiple buffers
-	TODO- *Command* or *Shell* buffer (think of REPL) 
-	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
 		- compile based on HL mode & working diretory: make, mvn build, ant ?	
-	TODO Unicode support (from ncurses?)
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2.4" // elm mode, undo & other modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.2.5" // elm mode, undo & other modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -129,7 +132,8 @@ enum editor_key {
 	COMMAND_KEY, /* M-x */
 	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
 	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
-        ABORT_KEY /* Ctrl-G */
+        ABORT_KEY, /* ?? */
+        GOTO_LINE_KEY /* Ctrl-G or M-G */
 };
 
 /*
@@ -168,13 +172,23 @@ typedef struct erow {
 	int hl_open_comment; 
 } erow;
 
+/* Global terminal information. Separated from editor_config which is tied to buffer. */
+struct term_config {
+        int screenrows; 
+        int screencols;
+        struct termios orig_termios;
+};
+
+struct term_config TERMINAL; 
+
+/* Buffer */
 struct editor_config {
 	int cx, cy; 
 	int rx; 
 	int rowoff;
 	int coloff; 
-	int screenrows; 
-	int screencols; 
+	//int screenrows; TODO reintroduce
+	//int screencols; TODO reintroduce
 	int numrows;
 	erow *row; 
 	int dirty; 
@@ -184,21 +198,20 @@ struct editor_config {
 	char statusmsg[80];
 	time_t statusmsg_time; 
 	struct editor_syntax *syntax; 
-	struct termios orig_termios;
+	//struct termios orig_termios;
 	int is_new_file; 
 	int is_banner_shown; /* If shown once do not show again. */
-	/* TODO */
 	int is_soft_indent; 
 	int is_auto_indent; 
 	int tab_stop;  
 	int debug; 
 };
 
+/* TODO a pointer, to point to current_buffer->E. */
 struct editor_config E;
 
-/**
-	row (E.row in phase 1; from E.cx' to E.cx'' in phase 2)
-	is_eol = the whole line (phase 1; also phase 2 with double Ctrl-K or C-' ' & C/M-w)
+/* row (E.row in phase 1; from E.cx' to E.cx'' in phase 2)
+   is_eol = the whole line (phase 1; also phase 2 with double Ctrl-K or C-' ' & C/M-w)
 */
 
 typedef struct clipboard_row {
@@ -211,9 +224,9 @@ typedef struct clipboard_row {
 
 struct clipboard {
 	/* 
-		Fill clipboard with successive KILL_KEY presses. After the first non-KILL_KEY set C.is_full = 1
-	   	as not to add anything more. The clipboard contents stay & can be yanked as many times as needed, 
-	   	UNTIL the next KILL_KEY which clears clipboard and resets C.is_full to 0 if it was 1. 
+	Fill clipboard with successive KILL_KEY presses. After the first non-KILL_KEY set C.is_full = 1
+	as not to add anything more. The clipboard contents stay & can be yanked as many times as needed, 
+        UNTIL the next KILL_KEY which clears clipboard and resets C.is_full to 0 if it was 1. 
 	*/
 	int is_full; 
 	int numrows;
@@ -683,7 +696,8 @@ enum command_key {
 	COMMAND_UNDO,
 	COMMAND_INSERT_CHAR, /* for undo */
 	COMMAND_DELETE_CHAR, /* for undo */
-	COMMAND_DELETE_INDENT_AND_NEWLINE /* for undo only */
+	COMMAND_DELETE_INDENT_AND_NEWLINE, /* for undo only */
+        COMMAND_GOTO_LINE /* TODO */
 };
 
 enum command_arg_type {
@@ -839,7 +853,15 @@ struct command_str COMMANDS[] = {
 		NULL,
 		"Deleted",
 		"No characters to delete!"
-	}
+	},
+        { /* TODO */
+                COMMAND_GOTO_LINE,
+                "goto-line",
+                COMMAND_ARG_TYPE_INT,
+                "Goto line: %s",
+                "Jumped",
+                "Failed to goto line: "
+        }       
 };
 
 #define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
@@ -858,6 +880,38 @@ struct undo_str {
 
 struct undo_str *undo_stack;  
 
+/** buffers **/
+
+/* 	Multiple buffers. Editor config and undo stack are buffer specific; 
+   	clipboard and editor syntax aren't. 
+
+	Buffer types: file (like now), readonly (*Help), command (M-x compile, M-x repl?)
+
+   	TODO: macros to handle buffer->E....blaa. ?
+	TODO commands: open-file (C-x C-f), create-buffer, switch-buffer, 
+	close-buffer(-and-save?), kill-buffer (?).
+ */
+
+enum buffer_type {
+        BUFFER_TYPE_FILE = 0,
+        BUFFER_TYPE_READONLY, 
+        BUFFER_TYPE_COMMAND
+};
+
+struct buffer_str {
+	int type; /* file, command, read (*Help*, for example) */
+	struct editor_config E;
+	struct undo_str *undo_stack;
+        struct buffer_str *prev; 
+	struct buffer_str *next; 
+}; 
+
+
+#define EDITOR_CONFIG current_buffer->E
+
+struct buffer_str *buffer; 
+struct buffer_str *current_buffer;
+
 /*** prototypes ***/
 
 void editor_set_status_message(const char *fmt, ...);
@@ -870,6 +924,67 @@ void undo_push_simple(int command_key, int undo_command_key);
 void undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value);
 void undo_clipboard_kill_lines(struct clipboard *copy); 
 struct clipboard *clone_clipboard();
+void init_undo_stack(struct undo_str *stack);
+void die(const char *s);
+void init_config(struct editor_config cfg); 
+
+/** buffer */
+
+struct buffer_str *
+create_buffer(int type) {
+	struct buffer_str *p = malloc(sizeof(struct buffer_str));
+	if (p == NULL)
+		die("new buffer");
+
+        p->type = type;
+        init_undo_stack(p->undo_stack);
+        p->prev = NULL; 
+        p->next = NULL; 
+        
+        init_config(p->E);
+        
+        return p;        
+}
+
+void
+delete_current_buffer() {
+        struct buffer_str *new_current = NULL;
+        struct undo_str *u = NULL;
+        struct undo_str *n = NULL; 
+        
+        if (current_buffer == NULL)
+                return;
+                
+        if (current_buffer->prev == NULL && current_buffer->next == NULL)
+                return;     
+                
+        // Free undo_stack.
+        u = current_buffer->undo_stack;
+        while (u != NULL) {
+                if (u->clipboard != NULL) {
+                        free(u->clipboard->row);
+                        free(u->clipboard);
+                } 
+                
+                n = u->next;
+                free(u);
+                u = n;
+        }
+                  
+        if (current_buffer->prev != NULL) {
+                current_buffer->prev->next = current_buffer->next;
+                new_current = current_buffer->prev; /* Prev has priority. */
+        } 
+        
+        if (current_buffer->next != NULL) {
+                current_buffer->next->prev = current_buffer->prev;
+                if (new_current == NULL)
+                        new_current = current_buffer->next;
+        }
+
+        free(current_buffer);        
+        current_buffer = new_current;        
+}                
 
 /*** terminal ***/
 void 
@@ -883,7 +998,7 @@ die(const char *s) {
 
 void 
 disable_raw_mode() {
-	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &TERMINAL.orig_termios) == -1)
 		die("tcsetattr");
 }
 
@@ -891,12 +1006,12 @@ void
 enable_raw_mode() {
 	struct termios raw;
 
-	if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1)
+	if (tcgetattr(STDIN_FILENO, &TERMINAL.orig_termios) == -1)
 		die("tcgetattr");
 
 	atexit(disable_raw_mode);
 
-	raw = E.orig_termios;
+	raw = TERMINAL.orig_termios;
 
 	/* c_lflags are local flags. */ 
 	raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);	
@@ -1817,8 +1932,8 @@ undo_debug_stack() {
 		p = p->next; 
 	} 
 
-	if (currlen > E.screencols)
-		from = currlen - E.screencols; 
+	if (currlen > TERMINAL.screencols)
+		from = currlen - TERMINAL.screencols; 
 	else
 		from = 0; 
 
@@ -1845,7 +1960,7 @@ alloc_and_init_undo(int command_key) {
 void
 undo_push_simple(int command_key, int undo_command_key) {
 	if (undo_stack == NULL)
-		init_undo_stack(); 
+		init_undo_stack(undo_stack); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
 	undo->undo_command_key = undo_command_key; 
@@ -1857,7 +1972,7 @@ undo_push_simple(int command_key, int undo_command_key) {
 void
 undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value) {
 	if (undo_stack == NULL)
-		init_undo_stack(); 
+		init_undo_stack(undo_stack); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
 	undo->undo_command_key = undo_command_key; 
@@ -1869,7 +1984,7 @@ undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value) {
 void
 undo_push_clipboard() {
 	if (undo_stack == NULL)
-		init_undo_stack();
+		init_undo_stack(undo_stack);
 
 	struct clipboard *copy = clone_clipboard();
 
@@ -1883,7 +1998,7 @@ undo_push_clipboard() {
 void
 undo() {
 	if (undo_stack == NULL) {
-		init_undo_stack();
+		init_undo_stack(undo_stack);
 		return;
 	}
 
@@ -1940,6 +2055,10 @@ undo() {
 		undo_clipboard_kill_lines(top->clipboard);
 		free(top->clipboard->row);
 		free(top->clipboard);
+                break;
+        case COMMAND_GOTO_LINE: 
+                E.cy = top->orig_value; 
+                break; 
 	default:
 		break; 
 	}
@@ -2080,6 +2199,11 @@ command_move_cursor(int command_key) {
 		break;		
 	}
 }
+
+void
+command_goto_line() {
+
+}
 	
 void
 exec_command() {
@@ -2197,7 +2321,11 @@ exec_command() {
 				break;	
 			case COMMAND_INSERT_NEWLINE:
 				command_insert_newline();
-				break; 
+				break;
+                        case COMMAND_GOTO_LINE:
+                                if (int_arg >= 0 && int_arg < E.numrows) 
+                                        E.cy = int_arg;
+                                break;                                 
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
@@ -2451,14 +2579,14 @@ editor_scroll() {
 	if (E.cy < E.rowoff)
 		E.rowoff = E.cy;
 
-	if (E.cy >= E.rowoff + E.screenrows)
-		E.rowoff = E.cy - E.screenrows + 1; 
+	if (E.cy >= E.rowoff + TERMINAL.screenrows)
+		E.rowoff = E.cy - TERMINAL.screenrows + 1; 
 	
 	if (E.rx < E.coloff) 
     	E.coloff = E.rx;
   	
-  	if (E.rx >= E.coloff + E.screencols) 
-    	E.coloff = E.rx - E.screencols + 1;
+  	if (E.rx >= E.coloff + TERMINAL.screencols) 
+    	E.coloff = E.rx - TERMINAL.screencols + 1;
 }
 
 void
@@ -2466,30 +2594,31 @@ editor_draw_rows(struct abuf *ab) {
 	int y;
 	int filerow; 
 
-	for (y = 0; y < E.screenrows; y++) {
+	for (y = 0; y < TERMINAL.screenrows; y++) {
 		filerow = y + E.rowoff; 
 
 		if (filerow >= E.numrows) {
-			if (!E.is_banner_shown && E.numrows == 0 && y == E.screenrows / 3) {
+			if (!E.is_banner_shown && E.numrows == 0 && y == TERMINAL.screenrows / 3) {
 				int padding = 0;
-	      		char welcome[80];
-    	  		int welcomelen = snprintf(welcome, sizeof(welcome),
-        			"%s", KILO_VERSION);
-      			if (welcomelen > E.screencols) 
-      				welcomelen = E.screencols;
+	      	        	char welcome[80];
+                                int welcomelen = snprintf(welcome, sizeof(welcome),
+        			     "%s", KILO_VERSION);
+      			        if (welcomelen > TERMINAL.screencols) 
+      				      welcomelen = TERMINAL.screencols;
       		
-	      		padding = (E.screencols - welcomelen) / 2;
-	      		if (padding) {
-	        		ab_append(ab, "~", 1);
-	        		padding--;
-	      		}
-	      		while (padding--) 
-	      			ab_append(ab, " ", 1);
+	      		        padding = (TERMINAL.screencols - welcomelen) / 2;
+                                if (padding) {
+                                        ab_append(ab, "~", 1);
+	        		        padding--;
+	      		        }
 
-	      		ab_append(ab, welcome, welcomelen);
-	      	} else { // / 3
-				ab_append(ab, "~", 1);
-			}
+	      		        while (padding--) 
+	         			ab_append(ab, " ", 1);
+
+	      		        ab_append(ab, welcome, welcomelen);
+	      	        } else { // / 3
+			     ab_append(ab, "~", 1);
+		        }
 		} else {
 			char *c; 
 			unsigned char *hl; 
@@ -2499,51 +2628,50 @@ editor_draw_rows(struct abuf *ab) {
 			if (len < 0)
 				len = 0; 
 
-      		if (len > E.screencols) 
-      			len = E.screencols;
+      		        if (len > TERMINAL.screencols) 
+      			       len = TERMINAL.screencols;
 
-      		c  = &E.row[filerow].render[E.coloff];
-      		
-      		hl = &E.row[filerow].hl[E.coloff];
+      		        c  = &E.row[filerow].render[E.coloff];      		
+      		        hl = &E.row[filerow].hl[E.coloff];
 
-      		for (j = 0; j < len; j++) {
-      			if (iscntrl(c[j])) {
-      				char sym = (c[j] <= 26) ? '@' + c[j] : '?';
-      				ab_append(ab, "\x1b[7m", 4);
-      				ab_append(ab, &sym, 1);
-      				ab_append(ab, "\x1b[m", 3);
-      				if (current_colour != -1) {
-      					char buf[16];
-      					int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_colour); 
-      					ab_append(ab, buf, clen);
-      				}
+      		        for (j = 0; j < len; j++) {
+      			        if (iscntrl(c[j])) {
+      			                char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+                                        ab_append(ab, "\x1b[7m", 4);
+      				        ab_append(ab, &sym, 1);
+      				        ab_append(ab, "\x1b[m", 3);
+      				        if (current_colour != -1) {
+      					       char buf[16];
+      					       int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_colour); 
+      					       ab_append(ab, buf, clen);
+                                        }
 
-      			} else if (hl[j] == HL_NORMAL) {
-      				if (current_colour != -1) {
-      					ab_append(ab, "\x1b[39m", 5); /* Text colours 30-37 (0=blak, 1=ref,..., 7=white. 9=reset*/
-      					current_colour = -1; 
-      				}
-      				ab_append(ab, &c[j], 1);
+      			        } else if (hl[j] == HL_NORMAL) {
+                                        if (current_colour != -1) {
+                                                ab_append(ab, "\x1b[39m", 5); /* Text colours 30-37 (0=blak, 1=ref,..., 7=white. 9=reset*/
+                                                current_colour = -1; 
+      				        }
+      				        ab_append(ab, &c[j], 1);
       				
-      			} else {
-      				int colour = editor_syntax_to_colour(hl[j]);
-      				if (colour != current_colour) {
-      					char buf[16];
-      					int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", colour);
-      					ab_append(ab , buf, clen);
-      					current_colour = colour; 
-      				}
+      			        } else {
+      				        int colour = editor_syntax_to_colour(hl[j]);
+                                        if (colour != current_colour) {
+                                                char buf[16];
+                                                int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", colour);
+                                                ab_append(ab, buf, clen);
+                                                current_colour = colour; 
+                                        }
 
-      				ab_append(ab, &c[j], 1);
-      			}
-      		}
+                                        ab_append(ab, &c[j], 1);
+                                }
+                        }
 
-      		ab_append(ab, "\x1b[39m", 5); /* Final reset. */
-		}
+                        ab_append(ab, "\x1b[39m", 5); /* Final reset. */
+                }
 
-		ab_append(ab, "\x1b[K", 3); /* K = erase line */
-     	ab_append(ab, "\r\n", 2);
-    }
+                ab_append(ab, "\x1b[K", 3); /* K = erase line */
+                ab_append(ab, "\r\n", 2);
+        }
 }
 
 #define ESC_PREFIX "\x1b["
@@ -2598,13 +2726,13 @@ editor_draw_status_bar(struct abuf *ab) {
 	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
 		E.syntax != NULL ? E.syntax->filetype : "no ft", E.cy + 1, E.numrows);
 
-	if (len > E.screencols)
-		len = E.screencols; 
+	if (len > TERMINAL.screencols)
+		len = TERMINAL.screencols; 
 
 	ab_append(ab, status, len); 
 
-	while (len < E.screencols) {
-		if (E.screencols - len == rlen) {
+	while (len < TERMINAL.screencols) {
+		if (TERMINAL.screencols - len == rlen) {
 			ab_append(ab, rstatus, rlen);
 			break; 
 		} else {
@@ -2623,7 +2751,7 @@ void
 debug_cursor() {
 	char cursor[80];
 	snprintf(cursor, sizeof(cursor), "cx=%d rx=%d cy=%d coloff=%d screencols=%d", 
-		E.cx, E.rx, E.cy, E.coloff, E.screencols);
+		E.cx, E.rx, E.cy, E.coloff, TERMINAL.screencols);
 	editor_set_status_message(cursor); 
 }
 
@@ -2637,8 +2765,8 @@ editor_draw_message_bar(struct abuf *ab) {
         }
 
 	msglen = strlen(E.statusmsg); 
-	if (msglen > E.screencols)
-		msglen = E.screencols; 
+	if (msglen > TERMINAL.screencols)
+		msglen = TERMINAL.screencols; 
 	if (msglen && time(NULL) - E.statusmsg_time < 5) 
 		ab_append(ab, E.statusmsg, msglen);
 
@@ -2759,7 +2887,7 @@ editor_move_cursor(int key) {
 	erow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
 
   	switch (key) {
-    case ARROW_LEFT:
+        case ARROW_LEFT:
     	if (E.cx != 0) {
       		E.cx--;
       		if (E.coloff > 0)
@@ -2770,7 +2898,7 @@ editor_move_cursor(int key) {
        		E.cx = E.row[E.cy].size;
       	}
       	break;
-    case ARROW_RIGHT:
+        case ARROW_RIGHT:
     	//if (E.cx != E.screencols - 1)
     	if (row && E.cx < row->size) {
       		E.cx++;
@@ -2779,20 +2907,20 @@ editor_move_cursor(int key) {
         	E.cx = 0;
       	}
       	break;
-    case ARROW_UP:
+        case ARROW_UP:
     	if (E.cy != 0)
       		E.cy--;
       	break;
-    case ARROW_DOWN:
+        case ARROW_DOWN:
     	if (E.cy < E.numrows)
       		E.cy++;
       	break;
   	}
 
-    row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+        row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
   	rowlen = row ? row->size : 0;
   	if (E.cx > rowlen) {
-    	E.cx = rowlen;
+                E.cx = rowlen;
   	}
 }
 
@@ -2817,7 +2945,7 @@ editor_normalize_key(int c) {
 	else if (c == CTRL_KEY('u'))
 		c = COMMAND_UNDO_KEY;
 	else if (c == CTRL_KEY('g'))
-		c = ABORT_KEY;
+		c = GOTO_LINE_KEY;
 	return c; 
 }
 
@@ -2839,76 +2967,76 @@ editor_process_keypress() {
 	E.is_banner_shown = 1; // After the first keypress, yes. 
 
 	switch (c) {
-		case '\r':
-			command_insert_newline(); 
-			break;
-		case QUIT_KEY:
-			if (E.dirty && quit_times > 0) {
-				editor_set_status_message("WARNING!!! File has unsaved changes. "
-					"Press Ctrl-Q %d more times to quit.", quit_times);
-				quit_times--;
-				return; 
-			}
-
-			/* Clear the screen at the end. */
-			write(STDOUT_FILENO, "\x1b[2J", 4);
-      		write(STDOUT_FILENO, "\x1b[H", 3);
-			exit(0);
-			break;
-		case SAVE_KEY:
-			editor_save(COMMAND_SAVE_BUFFER);
-			break; 
-		case HOME_KEY:
-			E.cx = 0;
-			break;
-		case END_KEY:
-			if (E.cy < E.numrows)
-				E.cx = E.row[E.cy].size; 
-			break;
-		case FIND_KEY:
-			editor_find();
-			break; 
-		case BACKSPACE:
-		case CTRL_KEY('h'):
-		case DEL_KEY:
-			if (c == DEL_KEY) 
-				command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
-			command_delete_char();
-			break; 
-		case PAGE_DOWN:
-		case PAGE_UP: { 
-			int times = 0;
-			if (c == PAGE_UP) {
-				E.cy = E.rowoff;
-				times = E.screenrows; 
-			} else if (c == PAGE_DOWN) {
-				E.cy = E.rowoff + E.screenrows - 1;
-
-				if (E.cy <= E.numrows) {
-					times = E.screenrows;
-				} else {
-					E.cy = E.numrows; 
-					times = E.numrows - E.rowoff; 
-				}
-			}
-			while (times--)
-				command_move_cursor(c == PAGE_UP 
-					? COMMAND_MOVE_CURSOR_UP : COMMAND_MOVE_CURSOR_DOWN);
-			break;
+	case '\r':
+		command_insert_newline(); 
+		break;
+	case QUIT_KEY:
+		if (E.dirty && quit_times > 0) {
+			editor_set_status_message("WARNING!!! File has unsaved changes. "
+				"Press Ctrl-Q %d more times to quit.", quit_times);
+			quit_times--;
+			return; 
 		}
-		case ARROW_UP:
-			command_move_cursor(COMMAND_MOVE_CURSOR_UP);
-			break;
-		case ARROW_LEFT:
-			command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
-			break;
-		case ARROW_RIGHT:
+
+		/* Clear the screen at the end. */
+		write(STDOUT_FILENO, "\x1b[2J", 4);
+      		write(STDOUT_FILENO, "\x1b[H", 3);
+		exit(0);
+		break;
+	case SAVE_KEY:
+		editor_save(COMMAND_SAVE_BUFFER);
+		break; 
+	case HOME_KEY:
+		E.cx = 0;
+		break;
+	case END_KEY:
+		if (E.cy < E.numrows)
+			E.cx = E.row[E.cy].size; 
+		break;
+	case FIND_KEY:
+		editor_find();
+		break; 
+	case BACKSPACE:
+	case CTRL_KEY('h'):
+	case DEL_KEY:
+		if (c == DEL_KEY) 
 			command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
-			break;
-		case ARROW_DOWN:
-			command_move_cursor(COMMAND_MOVE_CURSOR_DOWN);
-			break;
-		case CTRL_KEY('l'):
+		command_delete_char();
+		break; 
+	case PAGE_DOWN:
+	case PAGE_UP: { 
+		int times = 0;
+		if (c == PAGE_UP) {
+			E.cy = E.rowoff;
+			times = TERMINAL.screenrows; 
+		} else if (c == PAGE_DOWN) {
+			E.cy = E.rowoff + TERMINAL.screenrows - 1;
+
+			if (E.cy <= E.numrows) {
+				times = TERMINAL.screenrows;
+			} else {
+				E.cy = E.numrows; 
+				times = E.numrows - E.rowoff; 
+			}
+		}
+		while (times--)
+			command_move_cursor(c == PAGE_UP 
+			? COMMAND_MOVE_CURSOR_UP : COMMAND_MOVE_CURSOR_DOWN);
+		break;
+		}
+	case ARROW_UP:
+		command_move_cursor(COMMAND_MOVE_CURSOR_UP);
+		break;
+	case ARROW_LEFT:
+		command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
+		break;
+	case ARROW_RIGHT:
+		command_move_cursor(COMMAND_MOVE_CURSOR_RIGHT);
+		break;
+        case ARROW_DOWN:
+		command_move_cursor(COMMAND_MOVE_CURSOR_DOWN);
+		break;
+	case CTRL_KEY('l'):
     	case '\x1b':
       		break;
       	case KILL_LINE_KEY:
@@ -2928,10 +3056,13 @@ editor_process_keypress() {
       		break; 
       	case COMMAND_UNDO_KEY:
       		undo();
-      		break; 
-		default:
-			command_insert_char(c);
-			break; 
+      		break;
+        case GOTO_LINE_KEY:
+                command_goto_line();
+                break;
+	default:
+		command_insert_char(c);
+		break; 
 	}
 
 	quit_times = KILO_QUIT_TIMES; 
@@ -2945,41 +3076,52 @@ init_clipboard() {
 }
 
 void
-init_config() {
+init_config(struct editor_config cfg) {
 	/* editor config */
-	E.cx = 0;
-	E.cy = 0;
-	E.rx = 0;
-	E.numrows = 0;
-	E.rowoff = 0;
-	E.coloff = 0;
-	E.dirty = 0;
-	E.row = NULL; 
-	E.filename = NULL; 
-	E.absolute_filename = NULL; 
-	E.basename = NULL; 
-	E.statusmsg[0] = '\0';
-	E.statusmsg_time = 0; 
-	E.syntax = NULL; 
-	E.is_new_file = 0;
-	E.is_banner_shown = 0; 
-	E.tab_stop = DEFAULT_KILO_TAB_STOP;
-	E.is_soft_indent = 0;
-	E.is_auto_indent = 0;
-	E.debug = 0; 	
+	cfg.cx = 0;
+	cfg.cy = 0;
+	cfg.rx = 0;
+	cfg.numrows = 0;
+	cfg.rowoff = 0;
+	cfg.coloff = 0;
+	cfg.dirty = 0;
+	cfg.row = NULL; 
+	cfg.filename = NULL; 
+	cfg.absolute_filename = NULL; 
+	cfg.basename = NULL; 
+	cfg.statusmsg[0] = '\0';
+	cfg.statusmsg_time = 0; 
+	cfg.syntax = NULL; 
+	cfg.is_new_file = 0;
+	cfg.is_banner_shown = 0; 
+	cfg.tab_stop = DEFAULT_KILO_TAB_STOP;
+	cfg.is_soft_indent = 0;
+	cfg.is_auto_indent = 0;
+	cfg.debug = 0; 	
+}
+
+void
+init_buffer() {
+	buffer = create_buffer(BUFFER_TYPE_FILE);
+        current_buffer = buffer; 
+        // TODO init E. (do it later.)
 }
 
 void
 init_editor() {
-	init_config();		// E
+        init_buffer();
+	init_config(E);		// TODO E
 	init_clipboard();	// C
-	init_undo_stack();	// undo_stack
+	init_undo_stack(undo_stack);	// undo_stack
 
-	if (get_window_size(&E.screenrows, &E.screencols) == -1)
+        /* XXX TODO Need global terminal settings for new buffer config initialization. */
+	if (get_window_size(&TERMINAL.screenrows, &TERMINAL.screencols) == -1)
 		die("get_window_size");
 
-	E.screenrows -= 2; /* Room for the status bar & status messages. */
+        /* TODO BACK TO E at some point (E is tied to a buffer, TERMINAL is global */
+	TERMINAL.screenrows -= 2; /* Room for the status bar & status messages. */
 }
+
 
 #define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii.\r\n" \
  	"Basic Commands:\r\n" \
@@ -3000,7 +3142,7 @@ init_editor() {
 	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command>:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
-	"\tsave-buffer-as, undo, set-mode\r\n" \
+	"\tsave-buffer-as, undo, set-mode, goto-line\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n"
