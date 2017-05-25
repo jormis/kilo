@@ -53,8 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-24
+	2017-05-25
 	Latest:
+        - Create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
+          - now need open file
         - M-x goto-line
 	- When aborted, the find command stops at the position.
        	- fixed cursor left movement bug when past screen length.
@@ -65,8 +67,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- help (-h, --help)
 	- Basically, limit input to ASCII only in command_insert_character().
 
-        TODO M-x goto-beginning, goto-end (of file)
 	TODO Open file (C-x C-f) 
+
+        TODO M-x goto-beginning, goto-end (of file)
 	TODO Multiple buffers
              - new buffer, delete buffer, switch buffer
 	TODO *Help* mode
@@ -85,7 +88,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.2.6" // elm mode, undo & other modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.3" // buffers, elm mode, undo & other modes, use --help"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -132,8 +135,10 @@ enum editor_key {
 	COMMAND_KEY, /* M-x */
 	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
 	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
-        ABORT_KEY, /* ?? */
-        GOTO_LINE_KEY /* Ctrl-G or M-G */
+        ABORT_KEY, /* NOT IMPLEMENTED */
+        GOTO_LINE_KEY, /* Ctrl-G */
+        NEXT_BUFFER_KEY, /* Esc-N? */
+        PREVIOUS_BUFFER_KEY /* Esc-P */
 };
 
 /*
@@ -667,7 +672,6 @@ struct editor_syntax HLDB[] = {
                 4,
                 1                
         }
-
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -701,7 +705,8 @@ enum command_key {
         COMMAND_CREATE_BUFFER,
         COMMAND_SWITCH_BUFFER,
         COMMAND_DELETE_BUFFER,
-        COMMAND_NEXT_BUFFER /* Ctrl-N? */
+        COMMAND_NEXT_BUFFER, /* Esc-N */
+        COMMAND_PREVIOUS_BUFFER /* Esc-P */
 };
 
 enum command_arg_type {
@@ -754,7 +759,14 @@ struct command_str COMMANDS[] = {
                 "Switched to next buffer.",
                 NULL
         },
-      
+        {
+                COMMAND_PREVIOUS_BUFFER,
+                "previous-buffer",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "Switched to previous buffer.",
+                NULL
+        },      
 	{
 		COMMAND_SET_MODE,
 		"set-mode",
@@ -915,7 +927,7 @@ struct undo_str {
 	struct undo_str *next; // Because of stack.
 };
 
-struct undo_str *undo_stack;  
+//struct undo_str *undo_stack;  
 
 /** buffers **/
 
@@ -961,28 +973,68 @@ void undo_push_simple(int command_key, int undo_command_key);
 void undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value);
 void undo_clipboard_kill_lines(struct clipboard *copy); 
 struct clipboard *clone_clipboard();
-void init_undo_stack(struct undo_str *stack);
+struct undo_str *init_undo_stack();
 void die(const char *s);
 void init_config(struct editor_config *cfg); 
 
 /** buffer */
 
+/* create_buffer() - Becomes the current buffer. Cannot be undone. */
 struct buffer_str *
 create_buffer(int type) {
+        struct editor_config *old_E = E; 
 	struct buffer_str *p = malloc(sizeof(struct buffer_str));
 	if (p == NULL)
 		die("new buffer");
 
         p->type = type;
-        init_undo_stack(p->undo_stack);
+        p->undo_stack = init_undo_stack();
         p->prev = NULL; 
         p->next = NULL; 
+        init_config(&p->E);
+
+        if (current_buffer != NULL) {
+                while (current_buffer->next != NULL)
+                        current_buffer = current_buffer->next; 
+                                
+                current_buffer->next = p;
+                p->prev = current_buffer;  
+                current_buffer = p; 
+        } else {
+                // This is a call to init_buffer(); 
+                current_buffer = p; 
+        }
         
-        //init_config(p->E);
-        
-        return p;        
+        E = &current_buffer->E; 
+        if (old_E != NULL)
+                E->debug = old_E->debug;
+
+        editor_refresh_screen(); 
+                                
+        return current_buffer;        
 }
 
+void
+command_next_buffer() {
+        if (current_buffer->next != NULL) {
+                current_buffer = current_buffer->next;
+                E = &current_buffer->E;
+                undo_push_simple(COMMAND_NEXT_BUFFER, COMMAND_PREVIOUS_BUFFER);
+                //editor_refresh_screen();
+        }
+}
+
+void
+command_previous_buffer() {
+        if (current_buffer->prev != NULL) {
+                current_buffer = current_buffer->prev;
+                E = &current_buffer->E;
+                undo_push_simple(COMMAND_PREVIOUS_BUFFER, COMMAND_NEXT_BUFFER);
+                //editor_refresh_screen();
+        }
+}
+
+/* Cannot be undone.*/
 void
 delete_current_buffer() {
         struct buffer_str *new_current = NULL;
@@ -1020,7 +1072,9 @@ delete_current_buffer() {
         }
 
         free(current_buffer);        
-        current_buffer = new_current;        
+        current_buffer = new_current;
+        E = &current_buffer->E; 
+        //editor_refresh_screen();
 }                
 
 /*** terminal ***/
@@ -1082,7 +1136,11 @@ editor_read_key() {
   			return CLEAR_MODIFICATION_FLAG_KEY; 
   		} else if (seq[0] == 'x' || seq[0] == 'X') {
   			return COMMAND_KEY; 
-  		}
+  		} else if (seq[0] == 'n' || seq[0] == 'N') {
+                        return NEXT_BUFFER_KEY;
+                } else if (seq[0] == 'p' || seq[0] == 'P') {
+                        return PREVIOUS_BUFFER_KEY; 
+                }
 
   		if (read(STDIN_FILENO, &seq[1], 1) != 1) return c; //'\x1b'; /*ditto*/
 
@@ -1927,9 +1985,9 @@ editor_save(int command_key) {
 
 
 /*** undo ***/
-void
+struct undo_str *
 init_undo_stack() {
-	undo_stack = malloc(sizeof(struct undo_str));
+	struct undo_str *undo_stack = malloc(sizeof(struct undo_str));
 	if (undo_stack == NULL)
 		die("undo stack");
 
@@ -1940,6 +1998,8 @@ init_undo_stack() {
 	undo_stack->orig_value = 0;
 	undo_stack->clipboard = NULL; 
 	undo_stack->next = NULL; 
+
+        return undo_stack; 
 }
 
 void
@@ -1947,7 +2007,7 @@ undo_debug_stack() {
 	if (!(E->debug & DEBUG_UNDOS))
 		return;
 
-	struct undo_str *p = undo_stack;
+	struct undo_str *p = current_buffer->undo_stack;
 
 	char *debug = NULL; 
 	int i = 1; 
@@ -1984,9 +2044,8 @@ alloc_and_init_undo(int command_key) {
 	undo->cx = E->cx;
 	undo->cy = E->cy; 
 	undo->command_key = command_key; 
-	undo->next = undo_stack;
-	
-	undo_stack = undo; 
+	undo->next = current_buffer->undo_stack;;
+	current_buffer->undo_stack = undo; 
 
 	return undo; 
 }
@@ -1994,35 +2053,32 @@ alloc_and_init_undo(int command_key) {
 /* no args for commands. */
 void
 undo_push_simple(int command_key, int undo_command_key) {
-	if (undo_stack == NULL)
-		init_undo_stack(undo_stack); 
+//	if (current_buffer->undo_stack == NULL)
+//		current_buffer->undo_stack = init_undo_stack(); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
 	undo->undo_command_key = undo_command_key; 
 	undo->orig_value = -1; 
-
 	undo_debug_stack();
 }
 
 void
 undo_push_one_int_arg(int command_key, int undo_command_key, int orig_value) {
-	if (undo_stack == NULL)
-		init_undo_stack(undo_stack); 
+//	if (current_buffer->undo_stack == NULL)
+//		current_buffer->undo_stack = init_undo_stack(); 
 
 	struct undo_str *undo = alloc_and_init_undo(command_key);
 	undo->undo_command_key = undo_command_key; 
 	undo->orig_value = orig_value; 
-
 	undo_debug_stack(); 
 }
 
 void
 undo_push_clipboard() {
-	if (undo_stack == NULL)
-		init_undo_stack(undo_stack);
+//	if (current_buffer->undo_stack == NULL)
+//		current_buffer->undo_stack = init_undo_stack(); 
 
 	struct clipboard *copy = clone_clipboard();
-
 	struct undo_str *undo = alloc_and_init_undo(COMMAND_KILL_LINE);
 	undo->undo_command_key = COMMAND_YANK_CLIPBOARD; 
 	undo->clipboard = copy; 
@@ -2032,16 +2088,16 @@ undo_push_clipboard() {
 
 void
 undo() {
-	if (undo_stack == NULL) {
-		init_undo_stack(undo_stack);
+	if (current_buffer->undo_stack == NULL) {
+		current_buffer->undo_stack = init_undo_stack();
 		return;
 	}
 
-	if (undo_stack->command_key == COMMAND_NO_CMD)
+	if (current_buffer->undo_stack->command_key == COMMAND_NO_CMD)
 		return; 
 
-	struct undo_str *top = undo_stack; 	
-	undo_stack = undo_stack->next; 
+	struct undo_str *top = current_buffer->undo_stack; 	
+	current_buffer->undo_stack = top->next; 
 
 	undo_debug_stack();
 
@@ -2383,7 +2439,25 @@ exec_command() {
                                         undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, E->cy);
                                         E->cy = int_arg;
                                 }
-                                break;                                 
+                                break;
+                        case COMMAND_CREATE_BUFFER:
+                                /* Note: for *Help* and *Compile* we set the type differently
+                                   and the buffer creation is not done here. */
+                                create_buffer(BUFFER_TYPE_FILE);
+                                editor_set_status_message(c->success);
+                                break;
+                        case COMMAND_DELETE_BUFFER:
+                                delete_current_buffer();
+                                editor_set_status_message(c->success);
+                                break;
+                        case COMMAND_NEXT_BUFFER:
+                                command_next_buffer();
+                                editor_set_status_message(c->success);
+                                break;
+                        case COMMAND_PREVIOUS_BUFFER:
+                                command_previous_buffer();
+                                editor_set_status_message(c->success);
+                                break;
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
@@ -3117,6 +3191,12 @@ editor_process_keypress() {
         case GOTO_LINE_KEY:
                 command_goto_line();
                 break;
+        case NEXT_BUFFER_KEY:
+                command_next_buffer();
+                break;
+        case PREVIOUS_BUFFER_KEY:
+                command_previous_buffer(); 
+                break;
 	default:
 		command_insert_char(c);
 		break; 
@@ -3160,18 +3240,15 @@ init_config(struct editor_config *cfg) {
 void
 init_buffer() {
 	buffer = create_buffer(BUFFER_TYPE_FILE);
-        current_buffer = buffer;         
+        current_buffer = buffer; 
+        E = &current_buffer->E;  
+        init_config(E);  
 }
 
 void
 init_editor() {
-        init_buffer();
-	init_config(&current_buffer->E);
-
-        E = &current_buffer->E;          // Old E.
-
-	init_clipboard();              // C
-	init_undo_stack(undo_stack);   // undo_stack
+        init_buffer(); // Side effect: sets E.
+	init_clipboard(); // C
 
         /* XXX TODO Need global terminal settings for new buffer config initialization. */
 	if (get_window_size(&TERMINAL.screenrows, &TERMINAL.screencols) == -1)
