@@ -1009,8 +1009,6 @@ create_buffer(int type) {
         if (old_E != NULL)
                 E->debug = old_E->debug;
 
-        editor_refresh_screen(); 
-                                
         return current_buffer;        
 }
 
@@ -3268,6 +3266,8 @@ init_editor() {
 	"\tCtrl-Y yank clipboard\r\n" \
 	"\tCtrl-U undo\r\n" \
         "\tCtrl-G goto line\r\n" \
+        "\tEsc-N next buffer\r\n" \
+        "\tEsc-P previous buffer\r\n" \
 	"\r\n" \
 	"Movement:\r\n" \
 	"\tArrow keys\r\n" \
@@ -3280,6 +3280,7 @@ init_editor() {
 	"Esc-X <command>:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
 	"\tsave-buffer-as, undo (Ctrl-U), set-mode, goto-line (Ctrl-G)\r\n" \
+        "\tcreate-buffer, next-buffer (Esc-N), previous-buffer (Esc-P), delete-buffer\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
@@ -3296,9 +3297,9 @@ void
 parse_options(int argc, char **argv) {
 	if (argc >= 3) {
 		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
-
 			E->debug = atoi(argv[2]);
 
+                        // TODO multiple files: create buffers & open.
 			if (argc >= 4)
 				editor_open(argv[3]);
 		} 
@@ -3319,7 +3320,7 @@ int
 main(int argc, char **argv) {
 	enable_raw_mode();
 	init_editor();
-	parse_options(argc, argv); // also opens a file.
+	parse_options(argc, argv); // Also opens file.
 
 	editor_set_status_message("Ctrl-S=save|C-Q=quit|C-F=find|C-K=copy|C-Y=paste|C-G=goto|C-U=undo");
 
