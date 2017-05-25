@@ -942,23 +942,6 @@ struct undo_str {
 	close-buffer(-and-save?), kill-buffer (?).
  */
 
-enum buffer_type {
-        BUFFER_TYPE_FILE = 0,
-        BUFFER_TYPE_READONLY, 
-        BUFFER_TYPE_COMMAND
-};
-
-struct buffer_str {
-	int type; /* file, command, read (*Help*, for example) */
-	struct editor_config E;
-	struct undo_str *undo_stack;
-        struct buffer_str *prev; 
-	struct buffer_str *next; 
-}; 
-
-
-#define EDITOR_CONFIG &current_buffer->E
-
 /*** prototypes ***/
 
 void editor_set_status_message(const char *fmt, ...);
@@ -976,6 +959,22 @@ void die(const char *s);
 void init_config(struct editor_config *cfg); 
 
 /** buffer */
+enum buffer_type {
+        BUFFER_TYPE_FILE = 0,
+        BUFFER_TYPE_READONLY, 
+        BUFFER_TYPE_COMMAND
+};
+
+struct buffer_str {
+	int type; /* file, command, read (*Help*, for example) */
+	struct editor_config E;
+	struct undo_str *undo_stack;
+        struct buffer_str *prev; 
+	struct buffer_str *next; 
+}; 
+
+
+#define EDITOR_CONFIG &current_buffer->E
 
 struct buffer_str *buffer; 
 struct buffer_str *current_buffer;
@@ -1062,13 +1061,18 @@ delete_current_buffer() {
                 editor_set_status_message(c->error_status);
                 return; 
         }
-                
+#if 0                
+        // XXX BUG HERE? Is clipboard [] or ->next 
+
+
         // Free undo_stack.
         u = current_buffer->undo_stack;
         while (u != NULL) {
-                if (u->clipboard != NULL) {
-                        if (u->clipboard->row != NULL)
-                                free(u->clipboard->row);
+                if (u->clipboard != NULL) { /* clipboard */
+                        if (u->clipboard->row != NULL) {
+                                free(u->clipboard->row->row); // char *
+                                free(u->clipboard->row); // clipboard_row *
+                        }
                         free(u->clipboard);
                 } 
                 
@@ -1076,7 +1080,7 @@ delete_current_buffer() {
                 free(u);
                 u = n;
         }
-                  
+#endif                  
         if (current_buffer->prev != NULL) {
                 current_buffer->prev->next = current_buffer->next;
                 new_current = current_buffer->prev; /* Prev has priority. */
