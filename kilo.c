@@ -56,7 +56,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	2017-05-25
 	Latest:
         - Create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
-          - now need open file
+          - now a need to implement `open file' 
         - M-x goto-line
 	- When aborted, the find command stops at the position.
        	- fixed cursor left movement bug when past screen length.
@@ -68,7 +68,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- Basically, limit input to ASCII only in command_insert_character().
 
 	TODO Open file (C-x C-f) 
-
         TODO M-x goto-beginning, goto-end (of file)
 	TODO Multiple buffers
              - new buffer, delete buffer, switch buffer
@@ -98,13 +97,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define DEBUG_CURSOR (1<<2) 
 
 /**
-	The CTRL_KEY macro bitwise-ANDs a character with the value 00011111, in binary. 
-	In other words, it sets the upper 3 bits of the character to 0. 
-	This mirrors what the Ctrl key does in the terminal: it strips the 6th and 7th 
-	bits from whatever key you press in combination with Ctrl, and sends that. 
-	The ASCII character set seems to be designed this way on purpose. 
-	(It is also similarly designed so that you can set and clear the 6th bit 
-	to switch between lowercase and uppercase.)
+The CTRL_KEY macro bitwise-ANDs a character with the value 00011111, in binary. 
+In other words, it sets the upper 3 bits of the character to 0. 
+This mirrors what the Ctrl key does in the terminal: it strips the 6th and 7th 
+bits from whatever key you press in combination with Ctrl, and sends that. 
+The ASCII character set seems to be designed this way on purpose. 
+(It is also similarly designed so that you can set and clear the 6th bit 
+to switch between lowercase and uppercase.)
 */
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -142,10 +141,10 @@ enum editor_key {
 };
 
 /*
-	editor_config.hl is an array of unsigned char values, meaning integers in the range of 0 to 255. 
-	Each value in the array will correspond to a character in render, and will tell you whether that 
-	character is part of a string, or a comment, or a number, and so on. Let’s create an enum containing 
-	the possible values that the hl array can contain.
+`erow.hl' is an array of unsigned char values, meaning integers in the range of 0 to 255. 
+Each value in the array will correspond to a character in render, and will tell you whether that 
+character is part of a string, or a comment, or a number, and so on. Let’s create an enum containing 
+the possible values that the hl array can contain.
 */
 enum editor_highlight {
 	HL_NORMAL = 0,
@@ -158,6 +157,7 @@ enum editor_highlight {
 	HL_MATCH
 };
 
+/* */
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
 #define HL_HIGHLIGHT_STRINGS (1<<1)
 
@@ -744,12 +744,13 @@ struct command_str COMMANDS[] = {
                 "Failed to switch to buffer: '%s'"
         },
         {
+                /* DELETE CURRENT BUFFER */
                 COMMAND_DELETE_BUFFER,
                 "delete-buffer",
-                COMMAND_ARG_TYPE_STRING,
-                "Delete buffer: %s",
-                "Buffer deleted.",
-                "Failed to delete buffer: '%s'"
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "The current buffer deleted.",
+                "Unsaved changes. Save buffer or clear modification bit."
         },
         {
                 COMMAND_NEXT_BUFFER,
@@ -956,10 +957,7 @@ struct buffer_str {
 }; 
 
 
-#define EDITOR_CONFIG current_buffer->E
-
-struct buffer_str *buffer; 
-struct buffer_str *current_buffer;
+#define EDITOR_CONFIG &current_buffer->E
 
 /*** prototypes ***/
 
@@ -979,10 +977,14 @@ void init_config(struct editor_config *cfg);
 
 /** buffer */
 
+struct buffer_str *buffer; 
+struct buffer_str *current_buffer;
+
 /* create_buffer() - Becomes the current buffer. Cannot be undone. */
 struct buffer_str *
 create_buffer(int type) {
         struct editor_config *old_E = E; 
+        struct command_str *c = command_get_by_key(COMMAND_CREATE_BUFFER);
 	struct buffer_str *p = malloc(sizeof(struct buffer_str));
 	if (p == NULL)
 		die("new buffer");
@@ -1000,6 +1002,8 @@ create_buffer(int type) {
                 current_buffer->next = p;
                 p->prev = current_buffer;  
                 current_buffer = p; 
+                editor_set_status_message(c->success);
+                
         } else {
                 // This is a call to init_buffer(); 
                 current_buffer = p; 
@@ -1015,20 +1019,24 @@ create_buffer(int type) {
 void
 command_next_buffer() {
         if (current_buffer->next != NULL) {
+                struct command_str *c = command_get_by_key(COMMAND_NEXT_BUFFER);
                 current_buffer = current_buffer->next;
                 E = &current_buffer->E;
                 undo_push_simple(COMMAND_NEXT_BUFFER, COMMAND_PREVIOUS_BUFFER);
-                //editor_refresh_screen();
+                if (c != NULL)
+                        editor_set_status_message(c->success);
         }
 }
 
 void
 command_previous_buffer() {
         if (current_buffer->prev != NULL) {
+                struct command_str *c = command_get_by_key(COMMAND_PREVIOUS_BUFFER);
                 current_buffer = current_buffer->prev;
                 E = &current_buffer->E;
                 undo_push_simple(COMMAND_PREVIOUS_BUFFER, COMMAND_NEXT_BUFFER);
-                //editor_refresh_screen();
+                if (c != NULL)
+                        editor_set_status_message(c->success);
         }
 }
 
@@ -1038,18 +1046,29 @@ delete_current_buffer() {
         struct buffer_str *new_current = NULL;
         struct undo_str *u = NULL;
         struct undo_str *n = NULL; 
+        struct command_str *c = command_get_by_key(COMMAND_DELETE_BUFFER);
         
         if (current_buffer == NULL)
                 return;
                 
-        if (current_buffer->prev == NULL && current_buffer->next == NULL)
-                return;     
+        if (current_buffer->prev == NULL && current_buffer->next == NULL) {
+                editor_set_status_message("Only buffer -- cannot be deleted.");
+                return; // Cannot delete the only buffer.    
+        }
+
+        // Not so fast: are there any unsaved changes? 
+        // Ok, this is a quick and dirty solution.
+        if (E->dirty) {
+                editor_set_status_message(c->error_status);
+                return; 
+        }
                 
         // Free undo_stack.
         u = current_buffer->undo_stack;
         while (u != NULL) {
                 if (u->clipboard != NULL) {
-                        free(u->clipboard->row);
+                        if (u->clipboard->row != NULL)
+                                free(u->clipboard->row);
                         free(u->clipboard);
                 } 
                 
@@ -1065,14 +1084,17 @@ delete_current_buffer() {
         
         if (current_buffer->next != NULL) {
                 current_buffer->next->prev = current_buffer->prev;
-                if (new_current == NULL)
+                if (new_current == NULL) /* If no prev the set current to next. */
                         new_current = current_buffer->next;
         }
 
+        if (new_current == NULL)
+                die("new current");
+                
         free(current_buffer);        
         current_buffer = new_current;
         E = &current_buffer->E; 
-        //editor_refresh_screen();
+        editor_set_status_message(c->success);
 }                
 
 /*** terminal ***/
@@ -2002,15 +2024,14 @@ init_undo_stack() {
 
 void
 undo_debug_stack() {
-	if (!(E->debug & DEBUG_UNDOS))
-		return;
-
 	struct undo_str *p = current_buffer->undo_stack;
-
 	char *debug = NULL; 
 	int i = 1; 
 	int currlen = 0;
 	int from = 0;
+
+	if (!(E->debug & DEBUG_UNDOS))
+		return;
 
 	while (p != NULL) {
 		char *entry = malloc(80);
@@ -2042,7 +2063,7 @@ alloc_and_init_undo(int command_key) {
 	undo->cx = E->cx;
 	undo->cy = E->cy; 
 	undo->command_key = command_key; 
-	undo->next = current_buffer->undo_stack;;
+	undo->next = current_buffer->undo_stack;
 	current_buffer->undo_stack = undo; 
 
 	return undo; 
@@ -2442,32 +2463,29 @@ exec_command() {
                                 /* Note: for *Help* and *Compile* we set the type differently
                                    and the buffer creation is not done here. */
                                 create_buffer(BUFFER_TYPE_FILE);
-                                editor_set_status_message(c->success);
                                 break;
                         case COMMAND_DELETE_BUFFER:
                                 delete_current_buffer();
-                                editor_set_status_message(c->success);
                                 break;
                         case COMMAND_NEXT_BUFFER:
                                 command_next_buffer();
-                                editor_set_status_message(c->success);
                                 break;
                         case COMMAND_PREVIOUS_BUFFER:
                                 command_previous_buffer();
-                                editor_set_status_message(c->success);
                                 break;
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
 			} 
 
-			free(char_arg);
+                        if (char_arg != NULL)
+			     free(char_arg);
 			free(command);
 			return;
 		} /* if !strncasecmp */ 
 	} /* for */
 
-	if (! found) {
+	if (!found) {
 		editor_set_status_message("Unknown command: '%s'");
 	}
 
