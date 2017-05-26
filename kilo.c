@@ -338,7 +338,7 @@ char *Python_HL_keywords[] = {
 char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", NULL };
 char *Text_HL_keywords[] = { NULL };
 
-char *Makefile_HL_extensions[] = { "Makefile", "makefile", "mk", ".mmk", NULL };
+char *Makefile_HL_extensions[] = { "Makefile", "makefile", ".mk", ".mmk", NULL };
 char *Makefile_HL_keywords[] = { NULL };
 
 char *Erlang_HL_extensions[] = { ".erl", NULL };
