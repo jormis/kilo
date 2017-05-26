@@ -86,7 +86,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.1"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.2"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1055,13 +1055,11 @@ delete_current_buffer() {
         }
 
         // Not so fast: are there any unsaved changes? 
-        // Ok, this is a quick and dirty solution.
+        // Ok, this is a quick and dirty solution for this buffer only.
         if (E->dirty) {
                 editor_set_status_message(c->error_status);
                 return; 
         }
-#if 1
-        // XXX BUG HERE? Is clipboard [] or ->next 
 
         // Free undo_stack.
         u = current_buffer->undo_stack;
@@ -1084,7 +1082,7 @@ delete_current_buffer() {
                 free(u);
                 u = n;
         }
-#endif                  
+
         if (current_buffer->prev != NULL) {
                 current_buffer->prev->next = current_buffer->next;
                 new_current = current_buffer->prev; /* Prev has priority. */
@@ -2530,9 +2528,6 @@ editor_find_callback(char *query, int key) {
 		direction = 1; 
 	} else if (key == ARROW_DOWN || key == ARROW_UP) {
 		direction = -1; 
-	/* } else if (key == ABORT_KEY) {
-		last_command_was_aborted = 1; 
-		return; */
 	} else {
 		last_match = -1;
 		direction = 1; 
@@ -2573,14 +2568,12 @@ editor_find() {
 	int saved_cx = E.cx; 
 	int saved_cy = E.cy; 
 	int saved_coloff = E.coloff; 
-	int saved_rowoff = E.rowoff;
-*/
+	int saved_rowoff = E.rowoff; */
 	char *query = editor_prompt("Search: %s (Use ESC/Arrows/Enter)", editor_find_callback); 
 	if (query) {
 		free(query);
 	} else {
-		
-		// Leave us at the last find position.
+				// Leave us at the last find position.
 		/* else {
 			E.cx = saved_cx;
 			E.cy = saved_cy; 
@@ -2620,13 +2613,20 @@ ab_free(struct abuf *ab) {
 
 void
 clipboard_clear() {
-	if (C.row != NULL)
-		free(C.row);
-	C.row = NULL; 
+        int i; 
+	if (C.row != NULL) { /* C.row is an array of clipboard_rows containing char *row. */
+                for (i = 0; i < C.numrows; i++) {
+                        if (C.row[i].row != NULL) {
+                                free(C.row[i].row);
+                        }
+                }         
+		free(C.row); 
+	}
+
+        C.row = NULL; 
 	C.numrows = 0;
 	C.is_full = 0; 
 }
-
 
 void
 clipboard_add_line_to_clipboard() {
@@ -2997,10 +2997,6 @@ editor_prompt(char *prompt, void (*callback) (char *, int)) {
 
 		c = editor_read_key();
 		
-		/*if (c == CTRL_KEY('q')) {
-			last_command_was_aborted = 1;
-			free(buf);
-		} else */
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) 
 				buf[--buflen] = '\0';
