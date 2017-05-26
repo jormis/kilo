@@ -53,10 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-25
+	2017-05-26
 	Latest:
-        - Create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
-          - now a need to implement `open file' 
+        - delete-buffer
+        - create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
         - M-x goto-line
 	- When aborted, the find command stops at the position.
        	- fixed cursor left movement bug when past screen length.
@@ -67,27 +67,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- help (-h, --help)
 	- Basically, limit input to ASCII only in command_insert_character().
 
+        TODO BUG: backspace at the end of a line that's longer than screencols.
 	TODO Open file (C-x C-f) 
+	TODO Emacs style C-K or C-SPC & C/M-W
         TODO M-x goto-beginning, goto-end (of file)
-	TODO Multiple buffers
-             - new buffer, delete buffer, switch buffer
-	TODO *Help* mode
-	TODO split kilo.c to multiple source files. 
+	TODO Split kilo.c into multiple source files. 
+	TODO *Help* mode (BUFFER_TYPE_READONLY)
+        TODO search-and-replace
 	TODO *Command* or *Shell* buffer (think of REPL) 
 	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
-        TODO search-and-replace
 	TODO Unicode support (-ncurses)
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
 	TODO Store the last command argument context-sensitively
-	TODO Emacs style C-K or C-SPC & C/M-W
 	TODO Proper command line options
 		- compile based on HL mode & working diretory: make, mvn build, ant ?	
 	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3" // buffers, elm mode, undo & other modes, use --help"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.1"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1061,17 +1060,22 @@ delete_current_buffer() {
                 editor_set_status_message(c->error_status);
                 return; 
         }
-#if 0                
+#if 1
         // XXX BUG HERE? Is clipboard [] or ->next 
-
 
         // Free undo_stack.
         u = current_buffer->undo_stack;
         while (u != NULL) {
                 if (u->clipboard != NULL) { /* clipboard */
                         if (u->clipboard->row != NULL) {
-                                free(u->clipboard->row->row); // char *
-                                free(u->clipboard->row); // clipboard_row *
+                                int i = 0;
+                                for (i = 0; i < u->clipboard->numrows; i++) {
+                                        struct clipboard_row *r = &u->clipboard->row[i];
+                                        if (r->row != NULL)
+                                                free(r->row);
+                                }
+                                
+                                free(u->clipboard->row); // clipboard_row * (a realloc'd chunk)
                         }
                         free(u->clipboard);
                 } 
@@ -2067,6 +2071,7 @@ alloc_and_init_undo(int command_key) {
 	undo->cx = E->cx;
 	undo->cy = E->cy; 
 	undo->command_key = command_key; 
+        undo->clipboard = NULL; 
 	undo->next = current_buffer->undo_stack;
 	current_buffer->undo_stack = undo; 
 
