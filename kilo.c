@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-05-27
 	Latest:
+        - M-x open-file
         - fixed open files bug where no files were opened in some cases.
         - slightly better editor_del_char() but undo for del does not work.
         - delete-buffer
@@ -70,7 +71,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- Basically, limit input to ASCII only in command_insert_character().
 
         TODO BUG: backspace at the end of a line that's longer than screencols.
-	TODO Open file (C-x C-f); multiple files open from cmd line
         TODO M-x goto-beginning, goto-end (of file) [optional]
 	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
 	TODO (0.5) Split kilo.c into multiple source files. 
@@ -88,7 +88,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO (1.0) Forth interpreter from libforth ... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.3"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.4"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -818,6 +818,7 @@ struct command_str COMMANDS[] = {
 		"Can't save, I/O error: %s" // %s = error
 	},
 	{
+                // Open file for reading, save current buffer to it.
 		COMMAND_SAVE_BUFFER_AS,
 		"save-buffer-as",
 		COMMAND_ARG_TYPE_STRING,
@@ -825,14 +826,14 @@ struct command_str COMMANDS[] = {
 		"%d bytes written successfully to %s", // Special handling: %d and %s
 		"Can't save, I/O error: %s" // %s = error
 	},
-	{ // TODO
-		COMMAND_OPEN_FILE,
-		"open-file",
-		COMMAND_ARG_TYPE_STRING,
-		"File to open: %s",
-		"Opened %s",
-		"Failed to open '%s'"
-	},
+        {       
+                COMMAND_OPEN_FILE,
+                "open-file",
+                COMMAND_ARG_TYPE_STRING,
+                "Open file: %s",
+                "%s opened.",
+                "Cannot open file: %s"
+        },       
 	{
 		COMMAND_MOVE_CURSOR_UP,
 		"move-cursor-up",
@@ -1911,24 +1912,32 @@ editor_basename(char *path) {
         }
 }
 
+/**
+ M-x open-file; also used when starting the editor to open files
+ specified in the command line.
+*/
 void
-editor_open(char *filename) {
+command_open_file(char *filename) {
  	char *line = NULL;
   	size_t linecap = 0;
   	ssize_t linelen;
-  	struct stat stat_buffer; 
-  	FILE *fp = NULL;
+        struct stat stat_buffer; 
+        FILE *fp = NULL;
+        
+        if (E->dirty > 0  
+                || E->numrows > 0 || E->cx > 0 || E->cy > 0 
+                ||  E->filename != NULL) {
+                /* This buffer is in use. Create a new one & use it. */
+                (void) create_buffer(BUFFER_TYPE_FILE, 0); 
+        }
 
-  	free(E->filename); 
-  	free(E->absolute_filename); 
-  	free(E->basename);
+        E->filename = strdup(filename); 
+        editor_select_syntax_highlight(NULL);
 
-  	E->filename = strdup(filename); 
+	E->absolute_filename = realpath(filename, NULL); 
+	E->basename = editor_basename(filename);
 
-  	editor_select_syntax_highlight(NULL); 
- 
-  	// TODO new file (not necessarily need be writeable)
-  	if (stat(filename, &stat_buffer) == -1) {
+  	if (stat(E->absolute_filename, &stat_buffer) == -1) {
   		if (errno == ENOENT) {
   			E->is_new_file = 1; 
   			E->dirty = 0; 
@@ -1938,13 +1947,10 @@ editor_open(char *filename) {
   		}
   	}
 
- 	fp = fopen(filename, "r");
+ 	fp = fopen(E->absolute_filename, "r");
   	if (!fp) {
   		die("fopen");
  	}
-
-	E->absolute_filename = realpath(filename, NULL); 
-	E->basename = editor_basename(filename);
 
   	while ((linelen = getline(&line, &linecap, fp)) != -1) {
                 if (linelen > 0 && (line[linelen - 1] == '\n' 
@@ -1953,10 +1959,12 @@ editor_open(char *filename) {
 
                 editor_insert_row(E->numrows, line, linelen);
 	}
+
 	free(line);
 	fclose(fp);
 	E->dirty = 0; 
 }
+
 
 /**
  *  rc = 0 OK
@@ -2442,9 +2450,6 @@ exec_command() {
 			case COMMAND_SAVE_BUFFER_AS:
 				editor_save(c->command_key);
 				break;
-			case COMMAND_OPEN_FILE:
-				editor_set_status_message("Not implemented yet.");
-				break;
 			case COMMAND_MOVE_CURSOR_UP:
 			case COMMAND_MOVE_CURSOR_DOWN:
 			case COMMAND_MOVE_CURSOR_LEFT:
@@ -2487,6 +2492,11 @@ exec_command() {
                                 break;
                         case COMMAND_PREVIOUS_BUFFER:
                                 command_previous_buffer();
+                                break;
+                        case COMMAND_OPEN_FILE:
+                                /* Note: is current buffer is empty, open into it. 
+                                Otherwise, create new buffer and open the file it.*/
+                                command_open_file(char_arg);
                                 break;
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
@@ -2912,8 +2922,8 @@ editor_draw_status_bar(struct abuf *ab) {
 void 
 debug_cursor() {
 	char cursor[80];
-	snprintf(cursor, sizeof(cursor), "cx=%d rx=%d cy=%d coloff=%d screencols=%d", 
-		E->cx, E->rx, E->cy, E->coloff, TERMINAL.screencols);
+	snprintf(cursor, sizeof(cursor), "cx=%d rx=%d cy=%d len=%d coloff=%d screencols=%d", 
+		E->cx, E->rx, E->cy, E->row[E->cy].size, E->coloff, TERMINAL.screencols);
 	editor_set_status_message(cursor); 
 }
 
@@ -3329,11 +3339,11 @@ display_help() {
 void 
 open_argument_files(int index, int argc, char **argv) {
         /* We have already called init_buffer() once before argument parsing. */
-        editor_open(argv[index]);
+        command_open_file(argv[index]);
         
         while (++index < argc) {
                 (void) create_buffer(BUFFER_TYPE_FILE, 0);
-                editor_open(argv[index]);
+                command_open_file(argv[index]);
         }
 }
 
