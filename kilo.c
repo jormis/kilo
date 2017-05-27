@@ -53,8 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-26
+	2017-05-27
 	Latest:
+        - fixed open files bug where no files were opened in some cases.
+        - slightly better editor_del_char() but undo for del does not work.
         - delete-buffer
         - create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
         - M-x goto-line
@@ -68,25 +70,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- Basically, limit input to ASCII only in command_insert_character().
 
         TODO BUG: backspace at the end of a line that's longer than screencols.
-	TODO Open file (C-x C-f) 
-	TODO Emacs style C-K or C-SPC & C/M-W
-        TODO M-x goto-beginning, goto-end (of file)
-	TODO Split kilo.c into multiple source files. 
-	TODO *Help* mode (BUFFER_TYPE_READONLY)
+	TODO Open file (C-x C-f); multiple files open from cmd line
+        TODO M-x goto-beginning, goto-end (of file) [optional]
+	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
+	TODO (0.5) Split kilo.c into multiple source files. 
+	TODO (0.6) *Help* mode (BUFFER_TYPE_READONLY)
         TODO search-and-replace
 	TODO *Command* or *Shell* buffer (think of REPL) 
-	TODO M-x compile (based on Mode & cwd contents): like Emacs (output)
-	TODO Unicode support (-ncurses)
+	TODO (0.7) M-x compile (based on Mode & cwd contents): like Emacs (output)
+	     [Compiling based on HL mode & working directory: make, mvn build, ant, lein]
 	TODO ~/.kilorc/.kilo.conf (tab-width) (M-x set-tab-width)
 	TODO M-x TAB command completion
 	TODO M-x command buffer & context-sensitive parameter buffer.
-	TODO Store the last command argument context-sensitively
-	TODO Proper command line options
-		- compile based on HL mode & working diretory: make, mvn build, ant ?	
-	TODO Forth interpreter, this elisp... (also: M-x forth-repl)
+	TODO (0.8) Store the last command argument context-sensitively
+	TODO Proper command line options (-lgetopt)
+	TODO (0.9) Unicode support (-ncurses)
+	TODO (1.0) Forth interpreter from libforth ... (also: M-x forth-repl)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.2"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.3"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -132,7 +134,7 @@ enum editor_key {
 	YANK_KEY, /* Ctrl-Y */
 	COMMAND_KEY, /* M-x */
 	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
-	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row.. */
+	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row ...*/
         ABORT_KEY, /* NOT IMPLEMENTED */
         GOTO_LINE_KEY, /* Ctrl-G */
         NEXT_BUFFER_KEY, /* Esc-N? */
@@ -980,7 +982,7 @@ struct buffer_str *current_buffer;
 
 /* create_buffer() - Becomes the current buffer. Cannot be undone. */
 struct buffer_str *
-create_buffer(int type) {
+create_buffer(int type, int verbose) {
         struct editor_config *old_E = E; 
         struct command_str *c = command_get_by_key(COMMAND_CREATE_BUFFER);
 	struct buffer_str *p = malloc(sizeof(struct buffer_str));
@@ -1000,7 +1002,8 @@ create_buffer(int type) {
                 current_buffer->next = p;
                 p->prev = current_buffer;  
                 current_buffer = p; 
-                editor_set_status_message(c->success);
+                if (verbose)
+                        editor_set_status_message(c->success);
                 
         } else {
                 // This is a call to init_buffer(); 
@@ -1010,7 +1013,6 @@ create_buffer(int type) {
         E = &current_buffer->E; 
         if (old_E != NULL)
                 E->debug = old_E->debug;
-
         return current_buffer;        
 }
 
@@ -1841,7 +1843,7 @@ editor_del_char(int undo) {
 			while (current_cx < E->cx) {
 				E->cx = current_cx; 
 				if (!undo) {
-					if (current_cx == orig_cx) {
+					if (current_cx == orig_cx) { // ??
 						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, 
 							char_to_be_deleted);
 					} else {
@@ -1854,6 +1856,12 @@ editor_del_char(int undo) {
 		}
 
 		E->cx = orig_cx - len;
+
+                if (E->coloff > 0) {
+                        E->coloff -= len;
+                        if (E->coloff < 0)
+                                E->coloff = 0;
+                }
 
 	} else { 
 		if (!undo)
@@ -1990,12 +1998,12 @@ editor_save(int command_key) {
 	if (fd != -1) {
 		if (ftruncate(fd, len) != -1) {
 			if (write(fd, buf, len) == len) {
-        		close(fd);
-        		free(buf);
-        		E->dirty = 0;
-        		E->is_new_file = 0;  
+        		      close(fd);
+        		      free(buf);
+        		      E->dirty = 0;
+        		      E->is_new_file = 0;  
 
-        		editor_set_status_message(c->success, // TODO Special case: both %d and %s
+        		      editor_set_status_message(c->success, // TODO Special case: both %d and %s
         			len, E->absolute_filename ? E->absolute_filename : E->filename);
 				return;
 			}
@@ -2469,7 +2477,7 @@ exec_command() {
                         case COMMAND_CREATE_BUFFER:
                                 /* Note: for *Help* and *Compile* we set the type differently
                                    and the buffer creation is not done here. */
-                                create_buffer(BUFFER_TYPE_FILE);
+                                (void) create_buffer(BUFFER_TYPE_FILE, 1);
                                 break;
                         case COMMAND_DELETE_BUFFER:
                                 delete_current_buffer();
@@ -3260,10 +3268,10 @@ init_config(struct editor_config *cfg) {
 
 void
 init_buffer() {
-	buffer = create_buffer(BUFFER_TYPE_FILE);
-        current_buffer = buffer; 
-        E = &current_buffer->E;  
-        init_config(E);  
+	buffer = create_buffer(BUFFER_TYPE_FILE, 0);
+        //current_buffer = buffer; 
+        //E = &current_buffer->E;  
+        //init_config(E);  
 }
 
 void
@@ -3316,16 +3324,30 @@ display_help() {
 	printf(KILO_HELP);
 }
 
+void 
+open_argument_files(int index, int argc, char **argv) {
+        /* We have already called init_buffer() once before argument parsing. */
+        editor_open(argv[index]);
+        
+        while (++index < argc) {
+                (void) create_buffer(BUFFER_TYPE_FILE, 0);
+                editor_open(argv[index]);
+        }
+}
+
 void
 parse_options(int argc, char **argv) {
 	if (argc >= 3) {
 		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
 			E->debug = atoi(argv[2]);
 
-                        // TODO multiple files: create buffers & open.
-			if (argc >= 4)
-				editor_open(argv[3]);
-		} 
+                        /* TODO multiple files: create buffers & open. */
+			if (argc >= 4) {
+                                open_argument_files(3, argc, argv);                        
+                        }
+		}  else {
+                        open_argument_files(1, argc, argv);
+                }
 	} else if (argc >= 2) {
 		if (!strcmp(argv[1], "-v") || !strcmp(argv[1], "--version")) {
 			printf("%s\r\n", KILO_VERSION);
@@ -3334,7 +3356,8 @@ parse_options(int argc, char **argv) {
 			display_help();
 			exit(0);
 		} else {
-			editor_open(argv[1]);
+                        open_argument_files(1, argc, argv);
+
 		}
 	}
 }
