@@ -3303,20 +3303,22 @@ init_editor() {
 	"Movement:\r\n" \
 	"\tArrow keys\r\n" \
 	"\tPage Down/Ctrl-V Page Down\r\n" \
-	"\tPage Up/Esc-V Page Up\r\n" \
-	"\tHome/Ctrl-A Beginning of line\r\n" \
-	"\tEnd/Ctrl-E End of line\r\n" \
+	"\tPage Up/Esc-V    Page Up\r\n" \
+	"\tHome/Ctrl-A      Beginning of line\r\n" \
+	"\tEnd/Ctrl-E       End of line\r\n" \
 	"\r\n" \
 	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command>:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
 	"\tsave-buffer-as, undo (Ctrl-U), set-mode, goto-line (Ctrl-G)\r\n" \
-        "\tcreate-buffer, next-buffer (Esc-N), previous-buffer (Esc-P), delete-buffer\r\n" \
+        "\tcreate-buffer, next-buffer (Esc-N), previous-buffer (Esc-P),\r\n" \
+        " delete-buffer\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
         "\r\n" \
-        "Usage: kilo [--help|--version|--debug level] [file] (level 1 = undo; 4 = cursor)\r\n"  
+        "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
+        "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
 
 void 
 display_help() {
