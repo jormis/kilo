@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-05-27
 	Latest:
+        - Ctrl-O open file Ctrl-N new buffer 
         - M-x mark (but no kill/copy region yet); opening a  new file don't cause segfault.
         - M-x open-file
         - Fixed open files bug where no files were opened in some cases.
@@ -90,7 +91,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.5"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.6"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -121,25 +122,27 @@ enum editor_key {
 	END_KEY,               /* Ctrl-E */
 	PAGE_UP,               /* Esc-V */
 	PAGE_DOWN,             /* Ctrl-V */
-	REFRESH_KEY,
+	REFRESH_KEY,           /* Ctrl-L TODO */
 	QUIT_KEY,              // 1010, Ctrl-Q
 	SAVE_KEY,              /* Ctrl-S */
 	FIND_KEY,              /* Ctrl-F */
 	CLEAR_MODIFICATION_FLAG_KEY, /* M-c */
 
 	/* These are more like commands.*/
-	MARK_KEY,              /* Ctrl-Space */
-	KILL_LINE_KEY,         /* Ctrl-K (like nano) */
-	COPY_REGION_KEY,       /* Esc-W */
-	KILL_REGION_KEY,       /* Ctrl-W */
-	YANK_KEY,              /* Ctrl-Y */
-	COMMAND_KEY,           /* Esc-x */
-	COMMAND_UNDO_KEY,      /* Ctrl-u */
-	COMMAND_INSERT_NEWLINE,/* 1022 Best undo for deleting newline (backspace in the beginning of row ...*/
-        ABORT_KEY, /* NOT IMPLEMENTED */
+        MARK_KEY,               /* Ctrl-Space */
+        KILL_LINE_KEY,          /* Ctrl-K (like nano) */
+	COPY_REGION_KEY,        /* Esc-W */
+	KILL_REGION_KEY,        /* Ctrl-W */
+	YANK_KEY,               /* Ctrl-Y */
+	COMMAND_KEY,            /* Esc-x */
+	COMMAND_UNDO_KEY,       /* Ctrl-u */
+	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row ...*/
+        ABORT_KEY,              /* TODO NOT IMPLEMENTED */
         GOTO_LINE_KEY,          /* Ctrl-G */
         NEXT_BUFFER_KEY,        /* Esc-N */
-        PREVIOUS_BUFFER_KEY     /* Esc-P */
+        PREVIOUS_BUFFER_KEY,    /* Esc-P */
+        NEW_BUFFER_KEY,         /* Ctrl-N */
+        OPEN_FILE_KEY           /* Ctrl-O */
 };
 
 /*
@@ -992,6 +995,7 @@ void init_config(struct editor_config *cfg);
 void command_copy_from_mark(struct command_str *c);
 void command_kill_from_mark(); 
 void command_mark(struct command_str *c);
+int editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_str);
 
 /** buffer */
 enum buffer_type {
@@ -1958,7 +1962,26 @@ command_open_file(char *filename) {
   	ssize_t linelen;
         struct stat stat_buffer; 
         FILE *fp = NULL;
-        
+        int free_filename = 0; 
+        int int_arg;
+        char *char_arg; 
+                        
+        if (filename == NULL) {
+                struct command_str *c = command_get_by_key(COMMAND_OPEN_FILE);
+                int rc = editor_get_command_argument(c, &int_arg, &char_arg);
+                if (rc == 1) {
+                        filename = strdup(char_arg);
+                        free(char_arg);
+                        free_filename = 1; 
+                } else if (rc == 0) {
+                        editor_set_status_message("Aborted");
+                        return;
+                } else {
+                        editor_set_status_message(c->error_status);
+                        return;
+                }                
+        }
+
         if (E->dirty > 0  
                 || E->numrows > 0 || E->cx > 0 || E->cy > 0 
                 ||  E->filename != NULL) {
@@ -1976,6 +1999,8 @@ command_open_file(char *filename) {
   		if (errno == ENOENT) {
   			E->is_new_file = 1; 
   			E->dirty = 0; 
+                        if (free_filename)
+                                free(filename);
   			return; 
   		} else {
   			die("stat");
@@ -1997,6 +2022,9 @@ command_open_file(char *filename) {
 
 	free(line);
 	fclose(fp);
+        if (free_filename)
+                free(filename); 
+                
 	E->dirty = 0; 
 }
 
@@ -3204,6 +3232,12 @@ editor_normalize_key(int c) {
                 c = MARK_KEY;
         else if (c == CTRL_KEY('w')) 
                 c = KILL_REGION_KEY; // M-W = COPY_REGION_KEY 
+        else if (c == CTRL_KEY('l'))
+                c = REFRESH_KEY;
+        else if (c == CTRL_KEY('n'))
+                c = NEW_BUFFER_KEY;
+        else if (c == CTRL_KEY('o'))
+                c = OPEN_FILE_KEY;
 	return c; 
 }
 
@@ -3333,6 +3367,12 @@ editor_process_keypress() {
         case KILL_REGION_KEY:
                 command_kill_from_mark(); 
                 break; 
+        case NEW_BUFFER_KEY:
+                (void) create_buffer(BUFFER_TYPE_FILE, 0);
+                break;
+        case OPEN_FILE_KEY:
+                command_open_file(NULL);
+                break; 
 	default:
 		command_insert_char(c);
 		break; 
@@ -3340,7 +3380,6 @@ editor_process_keypress() {
 
 	quit_times = KILO_QUIT_TIMES; 
 }
-
 
 /*** init ***/
 void
@@ -3408,6 +3447,8 @@ init_editor() {
         "\tEsc-W    copy region from mark to clipboard\r\n" \
 	"\tCtrl-U   undo last command\r\n" \
         "\tCtrl-G   goto line\r\n" \
+        "\tCtrl-O   open file\r\n" \
+        "\tCtrl-N   new buffer\r\n" \
         "\tEsc-N    next buffer\r\n" \
         "\tEsc-P    previous buffer\r\n" \
 	"\r\n" \
