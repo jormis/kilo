@@ -55,27 +55,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-05-27
 	Latest:
+        - M-x mark (but no kill/copy region yet); opening a  new file don't cause segfault.
         - M-x open-file
-        - fixed open files bug where no files were opened in some cases.
-        - slightly better editor_del_char() but undo for del does not work.
+        - Fixed open files bug where no files were opened in some cases.
+        - Slightly better editor_del_char() but undo for del does not work.
         - delete-buffer
         - create-buffer, next-buffer, previous-buffer works (need open-file, every E->dirty check), test delete-buffer.
         - M-x goto-line
 	- When aborted, the find command stops at the position.
-       	- fixed cursor left movement bug when past screen length.
+       	- Fixed cursor left movement bug when past screen length.
         - --debug 4 debugs cursor & screen position 
         - Elm mode (incomplete but we'll get there)
 	- Ruby mode
-	- undo works (but not 100%) on Ctrl-K/Ctrl-Y
-	- help (-h, --help)
+	- M-x undo works (but not 100%) on Ctrl-K/Ctrl-Y
+	- Help (-h, --help)
 	- Basically, limit input to ASCII only in command_insert_character().
 
         TODO BUG: backspace at the end of a line that's longer than screencols.
-        TODO M-x goto-beginning, goto-end (of file) [optional]
+        TODO M-x goto-beginning, goto-end (of file) [optional] (Esc-A, Esc-E?)
 	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
 	TODO (0.5) Split kilo.c into multiple source files. 
 	TODO (0.6) *Help* mode (BUFFER_TYPE_READONLY)
-        TODO search-and-replace
+        TODO search-and-replace (version 0: string; version 1: regexps)
 	TODO *Command* or *Shell* buffer (think of REPL) 
 	TODO (0.7) M-x compile (based on Mode & cwd contents): like Emacs (output)
 	     [Compiling based on HL mode & working directory: make, mvn build, ant, lein]
@@ -86,9 +87,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO Proper command line options (-lgetopt)
 	TODO (0.9) Unicode support (-ncurses)
 	TODO (1.0) Forth interpreter from libforth ... (also: M-x forth-repl)
+        TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.4"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.5"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -910,7 +912,7 @@ struct command_str COMMANDS[] = {
 		"Deleted",
 		"No characters to delete!"
 	},
-        { /* TODO */
+        { 
                 COMMAND_GOTO_LINE,
                 "goto-line",
                 COMMAND_ARG_TYPE_INT,
@@ -925,7 +927,23 @@ struct command_str COMMANDS[] = {
                 "",
                 "Mark set",
                 "Failed to set a mark."
-        }
+        },
+        {
+                COMMAND_COPY_REGION,
+                "copy-region",
+                COMMAND_ARG_TYPE_NONE,
+                "",
+                "Region copied.",
+                "No region to copy."
+        },
+        {
+                COMMAND_KILL_REGION,
+                "kill-region",
+                COMMAND_ARG_TYPE_NONE,
+                "",
+                "Region killed.",
+                "No region to kill."
+        }        
 };
 
 #define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
@@ -3380,15 +3398,18 @@ init_editor() {
 
 #define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii.\r\n" \
  	"Basic Commands:\r\n" \
-	"\tCtrl-Q quit\r\n" \
-	"\tCtrl-F find\r\n" \
-	"\tCtrl-S save\r\n" \
-	"\tCtrl-K kill/copy full line to clipboard\r\n" \
-	"\tCtrl-Y yank clipboard\r\n" \
-	"\tCtrl-U undo\r\n" \
-        "\tCtrl-G goto line\r\n" \
-        "\tEsc-N next buffer\r\n" \
-        "\tEsc-P previous buffer\r\n" \
+	"\tCtrl-Q   quit\r\n" \
+	"\tCtrl-F   find\r\n" \
+	"\tCtrl-S   save\r\n" \
+	"\tCtrl-K   kill/copy full line to clipboard\r\n" \
+	"\tCtrl-Y   yank clipboard\r\n" \
+        "\tCtrl-SPC set mark\r\n" \
+        "\tCtrl-W   kill region from mark to clipboard\r\n" \
+        "\tEsc-W    copy region from mark to clipboard\r\n" \
+	"\tCtrl-U   undo last command\r\n" \
+        "\tCtrl-G   goto line\r\n" \
+        "\tEsc-N    next buffer\r\n" \
+        "\tEsc-P    previous buffer\r\n" \
 	"\r\n" \
 	"Movement:\r\n" \
 	"\tArrow keys\r\n" \
@@ -3400,9 +3421,9 @@ init_editor() {
 	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command>:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
-	"\tsave-buffer-as, undo (Ctrl-U), set-mode, goto-line (Ctrl-G)\r\n" \
-        "\tcreate-buffer, next-buffer (Esc-N), previous-buffer (Esc-P),\r\n" \
-        " delete-buffer\r\n" \
+	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
+        "\tcreate-buffer, next-buffer, previous-buffer, delete-buffer\r\n" \
+        "\tmark, copy-region, kill-region, insert-char, delete-char\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
