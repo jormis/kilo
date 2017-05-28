@@ -115,30 +115,29 @@ enum editor_key {
 	ARROW_UP,
 	ARROW_DOWN,
 	DEL_KEY,
-	HOME_KEY,
-	END_KEY,
-	PAGE_UP,
-	PAGE_DOWN,
+	HOME_KEY,              /* Ctrl-A */
+	END_KEY,               /* Ctrl-E */
+	PAGE_UP,               /* Esc-V */
+	PAGE_DOWN,             /* Ctrl-V */
 	REFRESH_KEY,
-	QUIT_KEY, // 1010
-	SAVE_KEY,
-	FIND_KEY,
-	CLEAR_MODIFICATION_FLAG_KEY, /* M-c */ // TODO -> *_KEY
+	QUIT_KEY,              // 1010, Ctrl-Q
+	SAVE_KEY,              /* Ctrl-S */
+	FIND_KEY,              /* Ctrl-F */
+	CLEAR_MODIFICATION_FLAG_KEY, /* M-c */
 
 	/* These are more like commands.*/
-	MARK_KEY, /* Ctrl-Space */
-	KILL_LINE_KEY, /* Ctrl-K (nano mode) */
-	DEL_TO_THE_EOL_KEY, /* Ctrl-K (emacs mode)*/
-	DEL_FROM_MARK_KEY, /* Ctrl-W */
-	COPY_TO_CLIPBOARD_KEY, /* M-w */
-	YANK_KEY, /* Ctrl-Y */
-	COMMAND_KEY, /* M-x */
-	COMMAND_UNDO_KEY, /* C-u TODO BETTER KEY NEEDED */
-	COMMAND_INSERT_NEWLINE, /* 1022 Best undo for deleting newline (backspace in the beginning of row ...*/
+	MARK_KEY,              /* Ctrl-Space */
+	KILL_LINE_KEY,         /* Ctrl-K (like nano) */
+	COPY_REGION_KEY,       /* Esc-W */
+	KILL_REGION_KEY,       /* Ctrl-W */
+	YANK_KEY,              /* Ctrl-Y */
+	COMMAND_KEY,           /* Esc-x */
+	COMMAND_UNDO_KEY,      /* Ctrl-u */
+	COMMAND_INSERT_NEWLINE,/* 1022 Best undo for deleting newline (backspace in the beginning of row ...*/
         ABORT_KEY, /* NOT IMPLEMENTED */
-        GOTO_LINE_KEY, /* Ctrl-G */
-        NEXT_BUFFER_KEY, /* Esc-N? */
-        PREVIOUS_BUFFER_KEY /* Esc-P */
+        GOTO_LINE_KEY,          /* Ctrl-G */
+        NEXT_BUFFER_KEY,        /* Esc-N */
+        PREVIOUS_BUFFER_KEY     /* Esc-P */
 };
 
 /*
@@ -211,6 +210,8 @@ struct editor_config {
 	int is_auto_indent; 
 	int tab_stop;  
 	int debug; 
+        /* Set by COMMAND_MARK. Default values -1. */
+        int mark_x, mark_y; 
 };
 
 /* Points to current_buffer->E. */
@@ -707,7 +708,10 @@ enum command_key {
         COMMAND_SWITCH_BUFFER,
         COMMAND_DELETE_BUFFER,
         COMMAND_NEXT_BUFFER, /* Esc-N */
-        COMMAND_PREVIOUS_BUFFER /* Esc-P */
+        COMMAND_PREVIOUS_BUFFER, /* Esc-P */
+        COMMAND_MARK,
+        COMMAND_COPY_REGION,
+        COMMAND_KILL_REGION
 };
 
 enum command_arg_type {
@@ -913,7 +917,15 @@ struct command_str COMMANDS[] = {
                 "Goto line: %s",
                 "Jumped",
                 "Failed to goto line: "
-        }       
+        },
+        {
+                COMMAND_MARK,
+                "mark",
+                COMMAND_ARG_TYPE_NONE,
+                "",
+                "Mark set",
+                "Failed to set a mark."
+        }
 };
 
 #define COMMAND_ENTRIES (sizeof(COMMANDS) / sizeof(COMMANDS[0]))
@@ -958,7 +970,10 @@ void undo_clipboard_kill_lines(struct clipboard *copy);
 struct clipboard *clone_clipboard();
 struct undo_str *init_undo_stack();
 void die(const char *s);
-void init_config(struct editor_config *cfg); 
+void init_config(struct editor_config *cfg);
+void command_copy_from_mark(struct command_str *c);
+void command_kill_from_mark(); 
+void command_mark(struct command_str *c);
 
 /** buffer */
 enum buffer_type {
@@ -1169,6 +1184,8 @@ editor_read_key() {
                         return NEXT_BUFFER_KEY;
                 } else if (seq[0] == 'p' || seq[0] == 'P') {
                         return PREVIOUS_BUFFER_KEY; 
+                } else if (seq[0] == 'w' || seq[0] == 'W') {
+                        return COPY_REGION_KEY; 
                 }
 
   		if (read(STDIN_FILENO, &seq[1], 1) != 1) return c; //'\x1b'; /*ditto*/
@@ -1937,7 +1954,7 @@ command_open_file(char *filename) {
 	E->absolute_filename = realpath(filename, NULL); 
 	E->basename = editor_basename(filename);
 
-  	if (stat(E->absolute_filename, &stat_buffer) == -1) {
+  	if (stat(E->filename, &stat_buffer) == -1) {
   		if (errno == ENOENT) {
   			E->is_new_file = 1; 
   			E->dirty = 0; 
@@ -2498,6 +2515,15 @@ exec_command() {
                                 Otherwise, create new buffer and open the file it.*/
                                 command_open_file(char_arg);
                                 break;
+                        case COMMAND_MARK:
+                                command_mark(c);
+                                break;
+                        case COMMAND_COPY_REGION:
+                                command_copy_from_mark(c); 
+                                break;
+                        case COMMAND_KILL_REGION:
+                                command_kill_from_mark(); // calls copy_from with *KILL* 
+                                break;
 			default:
 				editor_set_status_message("Got command: '%s'", c->command_str);
 				break;
@@ -2505,6 +2531,7 @@ exec_command() {
 
                         if (char_arg != NULL)
 			     free(char_arg);
+
 			free(command);
 			return;
 		} /* if !strncasecmp */ 
@@ -2670,14 +2697,53 @@ clipboard_add_line_to_clipboard() {
 	editor_del_row(E->cy);
 }
 
+// XXX
 void
-clipboard_yank_lines() { 
+clipboard_add_region_to_clipboard(int command) {
+        /* Depending on whether the mark if before or after C-W or M-W either
+        the first or last row may not be whole. So, a partial row is added / extracted. */
+
+        if (command == COMMAND_COPY_REGION) {
+                // Don't delete copied region.
+        } else {
+                // Delete/kill.
+        }
+}
+
+/* An easy command to implement. */
+void 
+command_mark(struct command_str *c) {
+        E->mark_x = E->cx;
+        E->mark_y = E->cy;
+        editor_set_status_message(c->success); 
+}
+
+/* mode: Esc-W, Ctrl-W. First one only copies, second one also deletes the marked region. 
+   mode == c->command. */
+void
+command_copy_from_mark(struct command_str *c) {
+        /* No explicit mark, no kill from mark. */
+        if ((E->mark_x == -1 && E->mark_y == -1)
+                || (E->mark_x == E->cx && E->mark_y == E->cy)) {
+                editor_set_status_message(c->error_status);
+                return;
+        }
+        
+        // TODO
+}
+void
+command_kill_from_mark() {
+        command_copy_from_mark(command_get_by_key(COMMAND_KILL_REGION));
+}
+
+void
+clipboard_yank_lines(struct command_str *c) { 
 	int j = 0; 
 	for (j = 0; j < C.numrows; j++) {
 		editor_insert_row(E->cy++, C.row[j].row, C.row[j].size);		
 	}
 
-	editor_set_status_message("Yank lines!");
+	editor_set_status_message(c->success);
 }
 
 void
@@ -3116,6 +3182,10 @@ editor_normalize_key(int c) {
 		c = COMMAND_UNDO_KEY;
 	else if (c == CTRL_KEY('g'))
 		c = GOTO_LINE_KEY;
+        else if (c == CTRL_KEY(' '))
+                c = MARK_KEY;
+        else if (c == CTRL_KEY('w')) 
+                c = KILL_REGION_KEY; // M-W = COPY_REGION_KEY 
 	return c; 
 }
 
@@ -3213,7 +3283,7 @@ editor_process_keypress() {
       		clipboard_add_line_to_clipboard();
       		break;
       	case YANK_KEY:
-      		clipboard_yank_lines(); 
+      		clipboard_yank_lines(command_get_by_key(COMMAND_YANK_CLIPBOARD)); 
       		break;
       	case CLEAR_MODIFICATION_FLAG_KEY:
       		if (E->dirty) {
@@ -3236,6 +3306,15 @@ editor_process_keypress() {
         case PREVIOUS_BUFFER_KEY:
                 command_previous_buffer(); 
                 break;
+        case MARK_KEY:
+                command_mark(command_get_by_key(COMMAND_MARK));
+                break; 
+        case COPY_REGION_KEY:
+                command_copy_from_mark(command_get_by_key(COMMAND_COPY_REGION));
+                break;
+        case KILL_REGION_KEY:
+                command_kill_from_mark(); 
+                break; 
 	default:
 		command_insert_char(c);
 		break; 
@@ -3253,27 +3332,28 @@ init_clipboard() {
 
 void
 init_config(struct editor_config *cfg) {
-	/* editor config */
-	cfg->cx = 0;
-	cfg->cy = 0;
-	cfg->rx = 0;
-	cfg->numrows = 0;
-	cfg->rowoff = 0;
-	cfg->coloff = 0;
-	cfg->dirty = 0;
-	cfg->row = NULL; 
-	cfg->filename = NULL; 
-	cfg->absolute_filename = NULL; 
-	cfg->basename = NULL; 
-	cfg->statusmsg[0] = '\0';
-	cfg->statusmsg_time = 0; 
-	cfg->syntax = NULL; 
-	cfg->is_new_file = 0;
-	cfg->is_banner_shown = 0; 
-	cfg->tab_stop = DEFAULT_KILO_TAB_STOP;
-	cfg->is_soft_indent = 0;
-	cfg->is_auto_indent = 0;
-	cfg->debug = 0; 	
+        cfg->cx = 0;
+        cfg->cy = 0;
+        cfg->rx = 0;
+        cfg->numrows = 0;
+        cfg->rowoff = 0;
+        cfg->coloff = 0;
+        cfg->dirty = 0;
+        cfg->row = NULL; 
+        cfg->filename = NULL; 
+        cfg->absolute_filename = NULL; 
+        cfg->basename = NULL; 
+        cfg->statusmsg[0] = '\0';
+        cfg->statusmsg_time = 0; 
+        cfg->syntax = NULL; 
+        cfg->is_new_file = 0;
+        cfg->is_banner_shown = 0; 
+        cfg->tab_stop = DEFAULT_KILO_TAB_STOP;
+        cfg->is_soft_indent = 0;
+        cfg->is_auto_indent = 0;
+        cfg->debug = 0;
+        cfg->mark_x = -1; 
+        cfg->mark_y = -1; 
 }
 
 void
