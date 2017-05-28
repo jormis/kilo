@@ -3481,7 +3481,7 @@ main(int argc, char **argv) {
 	init_editor();
 	parse_options(argc, argv); // Also opens file.
 
-	editor_set_status_message("Ctrl-S=save|C-Q=quit|C-F=find|C-K=copy|C-Y=paste|C-G=goto|C-U=undo");
+	editor_set_status_message("Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | kilo --help for more info");
 
 	while (1) {
 		editor_refresh_screen();
