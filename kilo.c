@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-27
+	2017-05-30
 	Latest:
+        - Undo for next & previous buffer commands.
         - Ctrl-O open file Ctrl-N new buffer 
         - M-x mark (but no kill/copy region yet); opening a  new file don't cause segfault.
         - M-x open-file
@@ -73,11 +74,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- Basically, limit input to ASCII only in command_insert_character().
 
         TODO BUG: backspace at the end of a line that's longer than screencols.
+        TODO BUG: cursor up or down when at or near the end of line: faulty pos
+        TODO BUG: soft/hard tab mix (like in this very file) messes pos calc
         TODO M-x goto-beginning, goto-end (of file) [optional] (Esc-A, Esc-E?)
 	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
 	TODO (0.5) Split kilo.c into multiple source files. 
 	TODO (0.6) *Help* mode (BUFFER_TYPE_READONLY)
-        TODO search-and-replace (version 0: string; version 1: regexps)
+        TODO M-x search-and-replace (version 0: string; version 1: regexps)
 	TODO *Command* or *Shell* buffer (think of REPL) 
 	TODO (0.7) M-x compile (based on Mode & cwd contents): like Emacs (output)
 	     [Compiling based on HL mode & working directory: make, mvn build, ant, lein]
@@ -86,7 +89,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	TODO M-x command buffer & context-sensitive parameter buffer.
 	TODO (0.8) Store the last command argument context-sensitively
 	TODO Proper command line options (-lgetopt)
-	TODO (0.9) Unicode support (-ncurses)
+	TODO (0.9) Unicode support (-lncurses)
 	TODO (1.0) Forth interpreter from libforth ... (also: M-x forth-repl)
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
@@ -2054,6 +2057,7 @@ editor_save(int command_key) {
 			free(E->absolute_filename);
 			free(E->basename);
 
+                        // TODO strdup & free
 			E->filename = tmp; 
 			E->absolute_filename = realpath(E->filename, NULL); 
 			E->basename = editor_basename(E->filename);
@@ -2254,6 +2258,12 @@ undo() {
                 break;
         case COMMAND_GOTO_LINE: 
                 E->cy = top->orig_value; 
+                break; 
+        case COMMAND_NEXT_BUFFER:
+                command_next_buffer();
+                break;
+        case COMMAND_PREVIOUS_BUFFER:
+                command_previous_buffer();
                 break; 
 	default:
 		break; 
@@ -2749,6 +2759,9 @@ clipboard_add_region_to_clipboard(int command) {
         /* Depending on whether the mark if before or after C-W or M-W either
         the first or last row may not be whole. So, a partial row is added / extracted. */
 
+
+
+
         if (command == COMMAND_COPY_REGION) {
                 // Don't delete copied region.
         } else {
@@ -2774,8 +2787,9 @@ command_copy_from_mark(struct command_str *c) {
                 editor_set_status_message(c->error_status);
                 return;
         }
-        
+
         // TODO
+        // from_x_&_y to to_x_&_y
 }
 void
 command_kill_from_mark() {
