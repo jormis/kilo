@@ -53,9 +53,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-05-30
+	2017-06-16
 	Latest:
-        - Undo for next & previous buffer commands.
+        - goto-beginning & goto-end (Esc-A, Esc-E)
+        - Undo for next & previous buffer commands. (2017-05-30)
         - Ctrl-O open file Ctrl-N new buffer 
         - M-x mark (but no kill/copy region yet); opening a  new file don't cause segfault.
         - M-x open-file
@@ -76,7 +77,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO BUG: backspace at the end of a line that's longer than screencols.
         TODO BUG: cursor up or down when at or near the end of line: faulty pos
         TODO BUG: soft/hard tab mix (like in this very file) messes pos calc
-        TODO M-x goto-beginning, goto-end (of file) [optional] (Esc-A, Esc-E?)
 	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
 	TODO (0.5) Split kilo.c into multiple source files. 
 	TODO (0.6) *Help* mode (BUFFER_TYPE_READONLY)
@@ -94,7 +94,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.6"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.7"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -145,7 +145,9 @@ enum editor_key {
         NEXT_BUFFER_KEY,        /* Esc-N */
         PREVIOUS_BUFFER_KEY,    /* Esc-P */
         NEW_BUFFER_KEY,         /* Ctrl-N */
-        OPEN_FILE_KEY           /* Ctrl-O */
+        OPEN_FILE_KEY,          /* Ctrl-O */
+        GOTO_BEGINNING_OF_FILE_KEY, /* Esc-A */
+        GOTO_END_OF_FILE_KEY,   /* Esc-E */
 };
 
 /*
@@ -711,7 +713,10 @@ enum command_key {
 	COMMAND_INSERT_CHAR, /* for undo */
 	COMMAND_DELETE_CHAR, /* for undo */
 	COMMAND_DELETE_INDENT_AND_NEWLINE, /* for undo only */
-        COMMAND_GOTO_LINE, /* TODO */
+        COMMAND_GOTO_LINE,
+        COMMAND_GOTO_BEGINNING_OF_FILE,
+        COMMAND_GOTO_END_OF_FILE,
+        COMMAND_REFRESH_SCREEN, /* Ctrl-L */
         COMMAND_CREATE_BUFFER,
         COMMAND_SWITCH_BUFFER,
         COMMAND_DELETE_BUFFER,
@@ -878,6 +883,31 @@ struct command_str COMMANDS[] = {
 		"",
 		NULL
 	},
+        {
+                COMMAND_GOTO_BEGINNING_OF_FILE,
+                "goto-beginning",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "",
+                NULL
+        },
+        {
+                COMMAND_GOTO_END_OF_FILE,
+                "goto-end",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "",
+                NULL
+        },
+        {
+                COMMAND_REFRESH_SCREEN,
+                "refresh",
+                COMMAND_ARG_TYPE_NONE,
+                NULL,
+                "",
+                NULL
+        },
+        
 	{
 		COMMAND_KILL_LINE,
 		"kill-line",
@@ -1211,8 +1241,12 @@ editor_read_key() {
                         return PREVIOUS_BUFFER_KEY; 
                 } else if (seq[0] == 'w' || seq[0] == 'W') {
                         return COPY_REGION_KEY; 
+                } else if (seq[0] == 'a' || seq[0] == 'A') {
+                        return GOTO_BEGINNING_OF_FILE_KEY;
+                } else if (seq[0] == 'e' || seq[0] == 'E') {
+                        return GOTO_END_OF_FILE_KEY;
                 }
-
+                
   		if (read(STDIN_FILENO, &seq[1], 1) != 1) return c; //'\x1b'; /*ditto*/
 
   		if (seq[0] == '[') {
@@ -2432,7 +2466,24 @@ command_goto_line() {
         free(char_arg); 
         undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, current_cy);
 }
-	
+
+void
+command_goto_beginning_of_file() {
+        E->cy = 0;
+        E->cx = 0;       
+}
+
+void
+command_goto_end_of_file() {
+        E->cy = E->numrows;
+        E->cx = 0;       
+}
+
+void
+command_refresh_screen() {
+        // XXX FOOBAR
+}
+
 void
 exec_command() {
 	char *command = NULL; 
@@ -2551,6 +2602,17 @@ exec_command() {
                                         undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, E->cy);
                                         E->cy = int_arg;
                                 }
+                                break;
+                        case COMMAND_GOTO_BEGINNING_OF_FILE:
+                                undo_push_one_int_arg(COMMAND_GOTO_BEGINNING_OF_FILE, COMMAND_GOTO_LINE, E->cy); /* TODO E->cx */
+                                command_goto_beginning_of_file(); 
+                                break;
+                        case COMMAND_GOTO_END_OF_FILE:
+                                undo_push_one_int_arg(COMMAND_GOTO_BEGINNING_OF_FILE, COMMAND_GOTO_LINE, E->cy); /* TODO E->cx */
+                                command_goto_end_of_file();
+                                break;
+                        case COMMAND_REFRESH_SCREEN:
+                                command_refresh_screen();
                                 break;
                         case COMMAND_CREATE_BUFFER:
                                 /* Note: for *Help* and *Compile* we set the type differently
@@ -3342,8 +3404,15 @@ editor_process_keypress() {
         case ARROW_DOWN:
 		command_move_cursor(COMMAND_MOVE_CURSOR_DOWN);
 		break;
-	case CTRL_KEY('l'):
+        case GOTO_BEGINNING_OF_FILE_KEY:
+                command_goto_beginning_of_file();
+                break;
+        case GOTO_END_OF_FILE_KEY:
+                command_goto_end_of_file();
+                break;
+	case REFRESH_KEY: /* Ctrl-L */
     	case '\x1b':
+                /* TODO: E.cy to the center of screen.. */
       		break;
       	case KILL_LINE_KEY:
       		clipboard_add_line_to_clipboard();
@@ -3472,6 +3541,8 @@ init_editor() {
 	"\tPage Up/Esc-V    Page Up\r\n" \
 	"\tHome/Ctrl-A      Beginning of line\r\n" \
 	"\tEnd/Ctrl-E       End of line\r\n" \
+        "\tEsc-A            Beginning of file\r\n" \
+        "\tEsc-E            End of file\r\n" \
 	"\r\n" \
 	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command>:\r\n" \
@@ -3479,6 +3550,7 @@ init_editor() {
 	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
         "\tcreate-buffer, next-buffer, previous-buffer, delete-buffer\r\n" \
         "\tmark, copy-region, kill-region, insert-char, delete-char\r\n" \
+        "\tgoto-beginning, goto-end\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
