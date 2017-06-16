@@ -55,7 +55,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-06-16
 	Latest:
-        - goto-beginning & goto-end (Esc-A, Esc-E)
+        - 0.3.8 refresh (Ctrl-L)
+        - 0.3.7 goto-beginning & goto-end (Esc-A, Esc-E)
         - Undo for next & previous buffer commands. (2017-05-30)
         - Ctrl-O open file Ctrl-N new buffer 
         - M-x mark (but no kill/copy region yet); opening a  new file don't cause segfault.
@@ -94,7 +95,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.7"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.8"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -995,8 +996,6 @@ struct undo_str {
 	struct clipboard *clipboard; // kill, yank
 	struct undo_str *next; // Because of stack.
 };
-
-//struct undo_str *undo_stack;  
 
 /** buffers **/
 
@@ -2481,7 +2480,9 @@ command_goto_end_of_file() {
 
 void
 command_refresh_screen() {
-        // XXX FOOBAR
+        E->rowoff = E->cy - (TERMINAL.screenrows / 2);
+        if (E->rowoff < 0)
+                E->rowoff = 0;
 }
 
 void
@@ -3412,7 +3413,7 @@ editor_process_keypress() {
                 break;
 	case REFRESH_KEY: /* Ctrl-L */
     	case '\x1b':
-                /* TODO: E.cy to the center of screen.. */
+                command_refresh_screen(); 
       		break;
       	case KILL_LINE_KEY:
       		clipboard_add_line_to_clipboard();
@@ -3534,6 +3535,7 @@ init_editor() {
         "\tCtrl-N   new buffer\r\n" \
         "\tEsc-N    next buffer\r\n" \
         "\tEsc-P    previous buffer\r\n" \
+        "\tCtrl-L   refresh screen (center to cursor row)\r\n" \
 	"\r\n" \
 	"Movement:\r\n" \
 	"\tArrow keys\r\n" \
@@ -3550,7 +3552,7 @@ init_editor() {
 	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
         "\tcreate-buffer, next-buffer, previous-buffer, delete-buffer\r\n" \
         "\tmark, copy-region, kill-region, insert-char, delete-char\r\n" \
-        "\tgoto-beginning, goto-end\r\n" \
+        "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
 	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
