@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 	2017-08-02
 	Latest:
+        - 0.3.9.1 Bazel autoindent && Erlang autoindent bug fix. TODO: generalize autoindent
         - 0.3.9 Bazel-mode
         - 0.3.8 refresh (Ctrl-L)
         - 0.3.7 goto-beginning & goto-end (Esc-A, Esc-E)
@@ -96,7 +97,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.1"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1865,7 +1866,7 @@ calculate_indent(erow *row) {
 			} else if (!strcasecmp(E->syntax->filetype, "Erlang")) {
 				iter = 1; 
 				for (i = E->cx-1; iter && i >= 1; i--) { // NB: i >= 1
-					if (row->chars[i-1] == '-' || row->chars[i] == '>') { // ->
+					if (row->chars[i-1] == '-' && row->chars[i] == '>') { // ->
 						no_of_chars_to_indent += E->tab_stop;
 						iter = 0;
 					} else if (!isspace(row->chars[i])) {
@@ -1882,9 +1883,19 @@ calculate_indent(erow *row) {
                                                 iter = 0; 
                                         }
                                 }                                
+			} else if (!strcasecmp(E->syntax->filetype, "Bazel")) {
+                                iter = 1;
+                                for (i = E->cx-1; iter && i >= 0; i--) {
+                                        if (row->chars[i] == '(' || row->chars[i] == '[') {
+                                                no_of_chars_to_indent += E->tab_stop;
+                                                iter = 0;
+                                        } else if (!isspace(row->chars[i])) {
+                                                iter = 0; 
+                                        }
+                                }                                
                         }
 		} else if (!E->is_soft_indent
-		 		&& !strcasecmp(E->syntax->filetype, "Makefile")) {
+		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {
 			iter = 1; 
 			for (i = 0; iter && i < E->cx; i++) {
 				if (row->chars[i] == ':') { // target: dep
