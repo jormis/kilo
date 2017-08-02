@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-06-16
+	2017-08-02
 	Latest:
+        - 0.3.9 Bazel-mode
         - 0.3.8 refresh (Ctrl-L)
         - 0.3.7 goto-beginning & goto-end (Esc-A, Esc-E)
         - Undo for next & previous buffer commands. (2017-05-30)
@@ -95,7 +96,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.8"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -563,6 +564,51 @@ char *PHP_HL_keywords[] = {
         
         NULL
 };
+
+/* https://docs.bazel.build/versions/master/be/overview.html */
+char *Bazel_HL_extensions[] = { "WORKSPACE", "BUILD", ".bzl", NULL };
+char *Bazel_HL_keywords[] = { 
+        // Functions
+        "load", "package", "package_group", "licenses", "exports_files",
+        "glob", "select", "workspace",
+        // Android
+        "android_binary", "android_library", "aar_import", 
+        "android_device", "android_ndk_repository", 
+        "android_sdk_repository", 
+        // C/C++
+        "cc_binary", "cc_inc_library", "cc_library", "cc_proto_library",
+        "cc_test",  
+        // Java
+        "java_binary", "java_import", "java_library",
+        "java_lite_proto_library", "java_proto_library", "java_test", 
+        "java_plugin", "java_runtime", "java_runtime_suite", 
+        "java_toolchain", 
+        // Objective_C
+        "apple_binary", "apple_static_library", "apple_stub_library",
+        "ios_application", "ios_extension", "ios_extension_binary", 
+        "objc_binary", "j2objc_library", "objc_bundle", 
+        "objc_bundle_library", "objc_framework", "objc_import",
+        "objc_library", "objc_proto_library", "ios_test",
+        // Protocol Buffer
+        "proto_lang_toolchain", "proto_library",
+        //Python
+        "py_binary", "py_library", "py_test", "py_runtime", 
+        // Shell
+        "sh_binary", "sh_library", "sh_test", 
+        // Extra Actions
+        "action_listener", "extra_action", 
+        // General
+        "filegroup", "genquery", "test_suite", "alias",
+        "config_setting", "genrule",
+        // Platform
+        "constraint_setting", "contraint_value", "platform", "toolchain", 
+        // Workspace
+        "bind", "git_repository", "http_archive", "http_file", "http_jar",
+        "local_repository", "maven_jar", "maven_server", 
+        "new_git_repository", "new_http_archive", "new_local_repository",
+        "xcode_config", "xcode_version",
+        NULL
+};
  
 struct editor_syntax HLDB[] = {
 	{
@@ -684,6 +730,16 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1                
+        },
+        {
+                "Bazel",
+                Bazel_HL_extensions,
+                Bazel_HL_keywords,
+                "#",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
         }
 };
 
@@ -1328,8 +1384,8 @@ get_window_size(int *rows, int *cols) {
 	struct winsize ws;
 
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-    	if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) 
-    		return -1;
+                if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) 
+                        return -1;
 		return get_cursor_position(rows, cols);
 	} else {
 		*cols = ws.ws_col; 
@@ -3555,7 +3611,8 @@ init_editor() {
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
-	"C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python, Ruby, Shell & Text.\r\n" \
+	"Bazel, C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python,\r\n" \
+        "Ruby, Shell & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
         "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
