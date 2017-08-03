@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-08-02
+	2017-08-03
 	Latest:
+        - 0.3.9.2 refactor indent calculation a bit.
         - 0.3.9.1 Bazel autoindent && Erlang autoindent bug fix. TODO: generalize autoindent
         - 0.3.9 Bazel-mode
         - 0.3.8 refresh (Ctrl-L)
@@ -97,7 +98,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.1"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.2"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1828,6 +1829,33 @@ editor_insert_char(int c) {
 	E->cx += editor_row_insert_char(&E->row[E->cy], E->cx, c);  
 }
 
+/* 
+is_indent(row, triggers) 
+Note: Erlang's "->" is reduced to ">" */
+
+int 
+is_indent(erow *row, char *triggers) {
+        int i;
+        unsigned int j; 
+        if (row == NULL || triggers == NULL || strlen(triggers) == 0) 
+                return 0;
+                
+        for (i = E->cx-1; i >= 0; i--) {  
+                /* Check if the char in row belongs to trigger chars. */
+                for (j = 0; j < strlen(triggers); j++) {
+                        if (row->chars[i] == triggers[j])
+                                return 1; 
+                }
+                
+                /* Not a trigger char. Continue only if white space. */
+                if (!isspace(row->chars[i])) {
+                        return 0; 
+                }
+        }
+        
+        return 0; 
+} 
+
 /**
  * If auto_indent is on then we calculate the number of indents.
  * Here you can add language/mode specific indents. 
@@ -1854,48 +1882,17 @@ calculate_indent(erow *row) {
 			&& (no_of_chars_to_indent % E->tab_stop == 0)) {
 
 			if (!strcasecmp(E->syntax->filetype, "Python")) { /* Little extra for Python mode. */
-				iter = 1; 
-				for (i = E->cx-1; iter && i >= 0; i--) {
-					if (row->chars[i] == ':' || row->chars[i] == '\\') { // : or '\\'' 
-						no_of_chars_to_indent += E->tab_stop;
-						iter = 0;
-					} else if (!isspace(row->chars[i])) {
-						iter = 0; /* non-SPC terminates. */
-					}
-				}
+                                no_of_chars_to_indent += is_indent(row, ":\\") * E->tab_stop;
 			} else if (!strcasecmp(E->syntax->filetype, "Erlang")) {
-				iter = 1; 
-				for (i = E->cx-1; iter && i >= 1; i--) { // NB: i >= 1
-					if (row->chars[i-1] == '-' && row->chars[i] == '>') { // ->
-						no_of_chars_to_indent += E->tab_stop;
-						iter = 0;
-					} else if (!isspace(row->chars[i])) {
-						iter = 0; /* non-SPC terminates. */
-					}
-				}				
+                                no_of_chars_to_indent += is_indent(row, ">") * E->tab_stop; // > not ->
 			} else if (!strcasecmp(E->syntax->filetype, "Elm")) {
-                                iter = 1;
-                                for (i = E->cx-1; iter && i >= 0; i--) {
-                                        if (row->chars[i] == '=') {
-                                                no_of_chars_to_indent += E->tab_stop;
-                                                iter = 0;
-                                        } else if (!isspace(row->chars[i])) {
-                                                iter = 0; 
-                                        }
-                                }                                
+                                no_of_chars_to_indent += is_indent(row, "=") * E->tab_stop;
 			} else if (!strcasecmp(E->syntax->filetype, "Bazel")) {
-                                iter = 1;
-                                for (i = E->cx-1; iter && i >= 0; i--) {
-                                        if (row->chars[i] == '(' || row->chars[i] == '[') {
-                                                no_of_chars_to_indent += E->tab_stop;
-                                                iter = 0;
-                                        } else if (!isspace(row->chars[i])) {
-                                                iter = 0; 
-                                        }
-                                }                                
+                                no_of_chars_to_indent += is_indent(row, "([") * E->tab_stop;
                         }
 		} else if (!E->is_soft_indent
 		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {
+                        // TODO like above 
 			iter = 1; 
 			for (i = 0; iter && i < E->cx; i++) {
 				if (row->chars[i] == ':') { // target: dep
