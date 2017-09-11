@@ -53,8 +53,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-08-03
+	2017-09-11
 	Latest:
+        - 0.3.9.3 Dockerfile mode
         - 0.3.9.2 refactor indent calculation a bit.
         - 0.3.9.1 Bazel autoindent && Erlang autoindent bug fix. TODO: generalize autoindent
         - 0.3.9 Bazel-mode
@@ -98,7 +99,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.2"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.3"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -611,6 +612,24 @@ char *Bazel_HL_keywords[] = {
         "xcode_config", "xcode_version",
         NULL
 };
+
+char *Dockerfile_HL_extensions[] = { "Dockerfile", NULL };
+char *Dockerfile_HL_keywords[] = {
+        "ADD", "ARG", 
+        "CMD", "COPY", 
+        "ENTRYPOINT", "ENV", "EXPOSE", 
+        "FROM",
+        "HEALTHCHECK", 
+        "LABEL", 
+        "MAINTAINER", /* Deprecated */
+        "ONBUILD", 
+        "RUN",
+        "SHELL", "STOPSIGNAL", 
+        "USER", 
+        "VOLUME", 
+        "WORKDIR", 
+        NULL
+};         
  
 struct editor_syntax HLDB[] = {
 	{
@@ -740,6 +759,16 @@ struct editor_syntax HLDB[] = {
                 "#",
                 "", "",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "Dockerfile",
+                Dockerfile_HL_extensions,
+                Dockerfile_HL_keywords,
+                "#",
+                "", "",
+                HL_HIGHLIGHT_STRINGS, /* FIXME number parsing: ubuntu:16.04 only hilights 04 as number.*/
                 4,
                 1
         }
@@ -3564,9 +3593,6 @@ init_config(struct editor_config *cfg) {
 void
 init_buffer() {
 	buffer = create_buffer(BUFFER_TYPE_FILE, 0);
-        //current_buffer = buffer; 
-        //E = &current_buffer->E;  
-        //init_config(E);  
 }
 
 void
@@ -3619,8 +3645,8 @@ init_editor() {
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
-	"Bazel, C, Elm, Erlang, Java, JavaScript, Makefile, Perl, Python,\r\n" \
-        "Ruby, Shell & Text.\r\n" \
+	"Bazel, C, Dockerfile, Elm, Erlang, Java, JavaScript, Makefile,\r\n" \
+        "Perl, Python, Ruby, Shell & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
         "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
