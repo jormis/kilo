@@ -50,11 +50,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 /*** defines ***/
 /*
 	2017-09-17
 	Latest:
+        - 0.3.9.6 screen resize
         - 0.3.9.5 nginx mode
         - 0.3.9.4 SQL mode
         - 0.3.9.3 Dockerfile mode
@@ -101,7 +103,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.5"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.6"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1721,6 +1723,8 @@ struct undo_str {
 
 void editor_set_status_message(const char *fmt, ...);
 void editor_refresh_screen();
+void command_refresh_screen();
+void editor_scroll(); 
 char *editor_prompt(char *prompt, void (*callback) (char *, int));
 void editor_move_cursor(int key);
 struct command_str *command_get_by_key(int command_key);
@@ -1736,6 +1740,8 @@ void command_copy_from_mark(struct command_str *c);
 void command_kill_from_mark(); 
 void command_mark(struct command_str *c);
 int editor_get_command_argument(struct command_str *c, int *ret_int, char **ret_str);
+
+
 
 /** buffer */
 enum buffer_type {
@@ -1800,6 +1806,10 @@ command_next_buffer() {
                 struct command_str *c = command_get_by_key(COMMAND_NEXT_BUFFER);
                 current_buffer = current_buffer->next;
                 E = &current_buffer->E;
+                
+                editor_scroll();
+                //command_refresh_screen();
+                
                 undo_push_simple(COMMAND_NEXT_BUFFER, COMMAND_PREVIOUS_BUFFER);
                 if (c != NULL)
                         editor_set_status_message(c->success);
@@ -1812,6 +1822,10 @@ command_previous_buffer() {
                 struct command_str *c = command_get_by_key(COMMAND_PREVIOUS_BUFFER);
                 current_buffer = current_buffer->prev;
                 E = &current_buffer->E;
+                
+                editor_scroll();
+                //command_refresh_screen();
+                
                 undo_push_simple(COMMAND_PREVIOUS_BUFFER, COMMAND_NEXT_BUFFER);
                 if (c != NULL)
                         editor_set_status_message(c->success);
@@ -2045,6 +2059,33 @@ get_window_size(int *rows, int *cols) {
 		return 0; 
 	}
 }
+
+void
+handle_resize(int dummy) {
+        char msg[80];
+//        int current_screenrows = TERMINAL.screenrows;
+//        int current_screencols = TERMINAL.screencols;
+        
+	if (get_window_size(&TERMINAL.screenrows, &TERMINAL.screencols) == -1)
+		die("get_window_size@handle_resize");
+        // refresh
+        
+        TERMINAL.screenrows -= 2; /* status & message bars */
+        
+        sprintf(msg, "Resized to %d rows and %d columns.", 
+                TERMINAL.screenrows, TERMINAL.screencols);
+                        
+        // for in in bufs...
+        
+        editor_scroll();
+        //command_refresh_screen();
+
+        editor_set_status_message(msg);
+        // Finally. 
+        editor_refresh_screen();
+}
+
+
 
 /*** syntax highlighting ***/
 
@@ -4325,6 +4366,8 @@ main(int argc, char **argv) {
 	parse_options(argc, argv); // Also opens file.
 
 	editor_set_status_message("Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | kilo --help for more info");
+
+        signal(SIGWINCH, handle_resize);
 
 	while (1) {
 		editor_refresh_screen();
