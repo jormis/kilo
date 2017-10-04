@@ -1027,7 +1027,7 @@ char *nginx_HL_keywords[] = {
         "connection_pool_size", "create_full_put_path",
         
         "daemon", "dav_access", "dav_methods", "debug_connection", 
-        "debug_point", "default_type", "deby", "directio", 
+        "debug_point", "default_type", "deny", "directio", 
         "directio_alignment", "diable_symlinks",
         
         "empty_gif", "env", "error_log", "error_page", "etag", "events", 
