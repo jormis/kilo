@@ -54,8 +54,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-09-17
+	2017-12-28
 	Latest:
+        - 0.3.9.7 goto-line also refreshes screen
         - 0.3.9.6 screen resize
         - 0.3.9.5 nginx mode
         - 0.3.9.4 SQL mode
@@ -86,6 +87,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO BUG: backspace at the end of a line that's longer than screencols.
         TODO BUG: cursor up or down when at or near the end of line: faulty pos
         TODO BUG: soft/hard tab mix (like in this very file) messes pos calc
+        TODO BUG: make integer arg parsing more robust (goto-line NaN segfaults)
 	TODO (0.4) Emacs style C-K or C-SPC & C/M-W
 	TODO (0.5) Split kilo.c into multiple source files. 
 	TODO (0.6) *Help* mode (BUFFER_TYPE_READONLY)
@@ -103,7 +105,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.6"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.7"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -3047,7 +3049,8 @@ undo() {
 		free(top->clipboard);
                 break;
         case COMMAND_GOTO_LINE: 
-                E->cy = top->orig_value; 
+                E->cy = top->orig_value;
+                command_refresh_screen(); 
                 break; 
         case COMMAND_NEXT_BUFFER:
                 command_next_buffer();
@@ -3216,9 +3219,10 @@ command_goto_line() {
                 free(char_arg); 
         }
         
-        if (int_arg >= 0 && int_arg < E->numrows) 
+        if (int_arg >= 0 && int_arg < E->numrows) { 
                 E->cy = int_arg;
-                
+                command_refresh_screen();        
+        }
         free(char_arg); 
         undo_push_one_int_arg(COMMAND_GOTO_LINE, COMMAND_GOTO_LINE, current_cy);
 }
