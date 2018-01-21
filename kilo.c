@@ -1251,7 +1251,18 @@ char *go_HL_keywords[] = {
         "range", "return",
         "select", "struct", "switch",
         "type",
-        "var"
+        "var",
+        
+        "bool|", "byte|", // byte is alias for uint8
+        "complex64|", "complex128|",
+        "float32|", "float64|", 
+        "int|", "int8|", "int16|", "int32|", "int64|", 
+        "rune|", // alias for int32, represents a Unicode code point
+        "string|",
+        "uint|", "uint8|", "uint16|", "uint32|", "uint64|", "uinptr|",
+        
+        NULL
+        
 };
  
 struct editor_syntax HLDB[] = {
