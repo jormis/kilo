@@ -54,8 +54,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2017-12-28
+	2018-01-20
 	Latest:
+        - 0.3.9.8 golang mode
         - 0.3.9.7 goto-line also refreshes screen
         - 0.3.9.6 screen resize
         - 0.3.9.5 nginx mode
@@ -105,7 +106,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.7"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.8"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -1235,6 +1236,23 @@ char *nginx_HL_keywords[] = {
         
         NULL
 };
+
+char *go_HL_extensions[] = { ".go", NULL };
+char *go_HL_keywords[] = {
+        "break",
+        "case", "chan", "const", "continue",
+        "default", "defer", 
+        "else", 
+        "fallthrough", "for", "func",
+        "go", "goto", 
+        "if", "import", "interface",
+        "map",
+        "package",
+        "range", "return",
+        "select", "struct", "switch",
+        "type",
+        "var"
+};
  
 struct editor_syntax HLDB[] = {
 	{
@@ -1392,6 +1410,16 @@ struct editor_syntax HLDB[] = {
                 nginx_HL_extensions,
                 nginx_HL_keywords,
                 "#",
+                "", "", 
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4, 
+                1      
+        },
+        {
+                "go",
+                go_HL_extensions,
+                go_HL_keywords,
+                "//",
                 "", "", 
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4, 
@@ -2583,6 +2611,8 @@ calculate_indent(erow *row) {
 			} else if (!strcasecmp(E->syntax->filetype, "Bazel")) {
                                 no_of_chars_to_indent += is_indent(row, "([") * E->tab_stop;
 			} else if (!strcasecmp(E->syntax->filetype, "nginx")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+                        } else if (!strcasecmp(E->syntax->filetype, "go")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         }
 		} else if (!E->is_soft_indent
@@ -4313,7 +4343,7 @@ init_editor() {
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are:\r\n" \
-	"Bazel, C, Dockerfile, Elm, Erlang, Java, JavaScript, Makefile, nginx,\r\n" \
+	"Bazel, C, Dockerfile, Elm, Erlang, Go, Java, JavaScript, Makefile, nginx,\r\n" \
         "Perl, Python, Ruby, Shell, SQL & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
