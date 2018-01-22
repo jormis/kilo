@@ -1431,7 +1431,7 @@ struct editor_syntax HLDB[] = {
                 go_HL_extensions,
                 go_HL_keywords,
                 "//",
-                "", "", 
+                "/*", "*/", 
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4, 
                 1      
