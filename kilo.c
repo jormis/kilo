@@ -54,8 +54,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2018-01-20
+	2018-02-08
 	Latest:
+        - 0.3.9.9 Dockerfile mode name changed to Docker & added ,dockerignore to Docker mode.
         - 0.3.9.8 golang mode
         - 0.3.9.7 goto-line also refreshes screen
         - 0.3.9.6 screen resize
@@ -106,7 +107,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.8"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.9"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -620,7 +621,10 @@ char *Bazel_HL_keywords[] = {
         NULL
 };
 
-char *Dockerfile_HL_extensions[] = { "Dockerfile", NULL };
+/* A .dockerignore file does not contain any Dockerfile keywords (unless by chance), 
+   it's a newline separated list of patterns similar to file globs. But I wanted to 
+   add it here to empasize its 'Dockerness'. */ 
+char *Dockerfile_HL_extensions[] = { "Dockerfile", ".dockerignore", NULL };
 char *Dockerfile_HL_keywords[] = {
         "ADD", "ARG", 
         "CMD", "COPY", 
@@ -1397,7 +1401,7 @@ struct editor_syntax HLDB[] = {
                 1
         },
         {
-                "Dockerfile",
+                "Docker",
                 Dockerfile_HL_extensions,
                 Dockerfile_HL_keywords,
                 "#",
@@ -4353,8 +4357,8 @@ init_editor() {
         "\tmark, copy-region, kill-region, insert-char, delete-char\r\n" \
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
-	"The supported higlighted file modes are:\r\n" \
-	"Bazel, C, Dockerfile, Elm, Erlang, Go, Java, JavaScript, Makefile, nginx,\r\n" \
+	"The supported higlighted file modes are (M-x set-mode <mode>):\r\n" \
+	"Bazel, C, Docker, Elm, Erlang, Go, Java, JavaScript, Makefile, nginx,\r\n" \
         "Perl, Python, Ruby, Shell, SQL & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
