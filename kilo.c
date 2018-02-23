@@ -54,8 +54,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*** defines ***/
 /*
-	2018-02-08
+	2018-02-23
 	Latest:
+        - 0.3.9.10 Vagrantfile triggers Ruby-mode
         - 0.3.9.9 Dockerfile mode name changed to Docker & added ,dockerignore to Docker mode.
         - 0.3.9.8 golang mode
         - 0.3.9.7 goto-line also refreshes screen
@@ -85,7 +86,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	- M-x undo works (but not 100%) on Ctrl-K/Ctrl-Y
 	- Help (-h, --help)
 	- Basically, limit input to ASCII only in command_insert_character().
-
+        TODO BUG: go mode uses spaces not tabs (also: indentation)
         TODO BUG: backspace at the end of a line that's longer than screencols.
         TODO BUG: cursor up or down when at or near the end of line: faulty pos
         TODO BUG: soft/hard tab mix (like in this very file) messes pos calc
@@ -107,7 +108,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         TODO (1.1) M-x hammurabi and other games. (BUFFER_TYPE_INTERACTIVE)
 */
 
-#define KILO_VERSION "kilo -- a simple editor version 0.3.9.9"
+#define KILO_VERSION "kilo -- a simple editor version 0.3.9.10"
 #define DEFAULT_KILO_TAB_STOP 8
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
@@ -509,7 +510,7 @@ char *Perl_HL_keywords[] = {
 	NULL
 };
 
-char *Ruby_HL_extensions[] = { ".rb", NULL };
+char *Ruby_HL_extensions[] = { ".rb", "Vagrantfile", NULL };
 char *Ruby_HL_keywords[] = {
         "__ENCODING__", "__LINE__", "__FILE__", "BEGIN", "END", 
         "alias", "and", "begin", "break", 
