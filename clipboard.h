@@ -28,7 +28,7 @@ struct clipboard {
 	clipboard_row *row; 
 }; 
 
-extern struct clipboard C; /* TODO static or extern in other source files? */
+//extern struct clipboard C; /* TODO static or extern in other source files? */
 
 void clipboard_clear();
 void clipboard_add_line_to_clipboard();

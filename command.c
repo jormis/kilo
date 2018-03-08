@@ -8,6 +8,8 @@
 #include "file.h"
 #include "find.h"
 
+extern struct clipboard C;
+
 /* M-x "command-str" <ENTER> followed by an optional argument (INT or STRING). */ 
 struct command_str COMMANDS[] = {
         {
