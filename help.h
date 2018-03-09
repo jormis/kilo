@@ -20,6 +20,7 @@
         "\tEsc-N    next buffer\r\n" \
         "\tEsc-P    previous buffer\r\n" \
         "\tCtrl-L   refresh screen (center to cursor row)\r\n" \
+        "\tEsc-C    clear the modification flag\r\n" \
         "\tEsc-X    <command> (see below)\r\n" \
 	"\r\n" \
 	"Movement:\r\n" \
@@ -31,7 +32,6 @@
         "\tEsc-A            Beginning of file\r\n" \
         "\tEsc-E            End of file\r\n" \
 	"\r\n" \
-	"Esc-C clears the modification flag.\r\n" \
 	"Esc-X <command> runs commands, <command> is on the following:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
 	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
