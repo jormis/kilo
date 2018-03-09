@@ -10,6 +10,7 @@
 
 #define KILO_QUIT_TIMES 3
 #define STATUS_MESSAGE_ABORTED "Aborted."
+#define DEFAULT_SEARCH_PROMPT "Search: %s (Use ESC/Arrows/Enter)"
 
 #define DEBUG_UNDOS (1<<0)
 #define DEBUG_COMMANDS (1<<1)
