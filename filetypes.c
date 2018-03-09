@@ -171,7 +171,14 @@ char *JS_HL_keywords[] = {
         NULL
 };
 
-char *Shell_HL_extensions[] = { ".sh", NULL };
+char *Shell_HL_extensions[] = { ".sh", "profile", ".bash_profile", ".bashrc", 
+        ".bash_login", ".bash_logout", ".history", ".login", ".logout", 
+        "zshenv", "zprofile", "zshenv" "zshrc", "zlogin", "zlogout", 
+        "csh.cshrc", "csh.login", ".cshrc", "csh.logout", ".tschrc", 
+        ".cshdirs", 
+        NULL 
+}; 
+        
 char *Shell_HL_keywords[] = {
 	// compgen -k
 	"if", "then", "else", "elif", "fi",
