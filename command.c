@@ -322,6 +322,9 @@ editor_del_char(int undo) {
 	}
 }
 
+/**
+        editor_process_keypress()
+*/
 void 
 editor_process_keypress() {
 	static int quit_times = KILO_QUIT_TIMES; 
@@ -329,7 +332,7 @@ editor_process_keypress() {
 
 	int c = key_normalize(key_read());
 
-	/* Clipboard full after the first non-KILL_LINE_KEY. */
+	/* Clipboard is deemed full after the first non-KILL_LINE_KEY. */
 	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY) {
 		C.is_full = 1; 
 		undo_push_clipboard();
@@ -345,8 +348,7 @@ editor_process_keypress() {
 		break;
 	case QUIT_KEY:
 		if (E->dirty && quit_times > 0) {
-			editor_set_status_message("WARNING!!! File has unsaved changes. "
-				"Press Ctrl-Q %d more times to quit.", quit_times);
+			editor_set_status_message(UNSAVED_CHANGES_WARNING, quit_times);
 			quit_times--;
 			return; 
 		}
@@ -501,7 +503,7 @@ command_open_file(char *filename) {
                         free(char_arg);
                         free_filename = 1; 
                 } else if (rc == 0) {
-                        editor_set_status_message("Aborted");
+                        editor_set_status_message(STATUS_MESSAGE_ABORTED);
                         return;
                 } else {
                         editor_set_status_message(c->error_status);
