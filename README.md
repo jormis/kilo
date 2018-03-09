@@ -45,6 +45,7 @@ It is based on the kilo project (https://github.com/antirez/kilo):
 	Esc-N    next buffer
 	Esc-P    previous buffer
 	Ctrl-L   refresh screen (center to cursor row)
+	Esc-X	 <command> (see below)	
 
 # Movement:
 	Arrow keys
@@ -58,7 +59,7 @@ It is based on the kilo project (https://github.com/antirez/kilo):
 Esc-C clears the modification flag.
 
 # Commands:
-Esc-X <command>
+    Esc-X <command>, where <command> is one of the following:
 
 	set-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,
 	save-buffer-as, open-file, undo, set-mode, goto-line
