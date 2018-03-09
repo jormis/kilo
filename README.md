@@ -45,7 +45,8 @@ It is based on the kilo project (https://github.com/antirez/kilo):
 	Esc-N    next buffer
 	Esc-P    previous buffer
 	Ctrl-L   refresh screen (center to cursor row)
-	Esc-X	 <command> (see below)	
+	Esc-C    clear the modification flag
+	Esc-X	 <command> (see below)
 
 # Movement:
 	Arrow keys
@@ -55,8 +56,6 @@ It is based on the kilo project (https://github.com/antirez/kilo):
 	End/Ctrl-E       End of line
 	Esc-A            Beginning of file
 	Esc-E            End of file
-
-Esc-C clears the modification flag.
 
 # Commands:
     Esc-X <command>, where <command> is one of the following:
