@@ -7,8 +7,8 @@ extern struct editor_config *E;
 /*** row operations ***/
 
 /* 
-is_indent(row, triggers) 
-Note: Erlang's "->" is reduced to ">" 
+        is_indent(row, triggers) 
+        Note: Erlang's "->" is reduced to ">" 
 
         row     the row the cursor is on
         triggers char[] of single triggers eg, ">" or ":" or "}"
@@ -96,7 +96,7 @@ editor_update_row(erow *row) {
 	row->render[idx] = '\0';
 	row->rsize = idx; 
 
-	editor_update_syntax(row);
+	syntax_update(row);
 }
 
 void

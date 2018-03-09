@@ -102,7 +102,7 @@ editor_draw_rows(struct abuf *ab) {
       				        ab_append(ab, &c[j], 1);
       				
       			        } else {
-      				        int colour = editor_syntax_to_colour(hl[j]);
+      				        int colour = syntax_to_colour(hl[j]);
                                         if (colour != current_colour) {
                                                 char buf[16];
                                                 int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", colour);

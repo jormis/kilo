@@ -517,7 +517,7 @@ command_open_file(char *filename) {
         }
 
         E->filename = strdup(filename); 
-        editor_select_syntax_highlight(NULL);
+        syntax_select_highlight(NULL);
 
 	E->absolute_filename = realpath(filename, NULL); 
 	E->basename = editor_basename(filename);
@@ -585,7 +585,7 @@ editor_save(int command_key) {
 			E->filename = tmp; 
 			E->absolute_filename = realpath(E->filename, NULL); 
 			E->basename = editor_basename(E->filename);
-                        editor_select_syntax_highlight(NULL);
+                        syntax_select_highlight(NULL);
 
 		} else {
 			editor_set_status_message(STATUS_MESSAGE_ABORTED); // TODO ABORT message in conf.
@@ -607,7 +607,7 @@ editor_save(int command_key) {
                                         len, E->absolute_filename ? E->absolute_filename : E->filename);
 				return;
 			}
-			editor_select_syntax_highlight(NULL); 
+			syntax_select_highlight(NULL); 
 		}
 		close(fd);
 	}
@@ -849,7 +849,7 @@ exec_command() {
 
 			switch (c->command_key) {
 			case COMMAND_SET_MODE:
-				if (editor_select_syntax_highlight(char_arg) == 0) { 
+				if (syntax_select_highlight(char_arg) == 0) { 
 					editor_set_status_message(c->success, char_arg);
 				} else {
 					editor_set_status_message(c->error_status, char_arg);

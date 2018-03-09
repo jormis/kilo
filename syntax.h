@@ -1,14 +1,16 @@
 #ifndef SYNTAX_H
 #define SYNTAX_H
-
+/**
+        syntax.h
+*/
 #include "data.h"
 #include "filetypes.h"
 
 int is_separator(char c);
-void editor_update_syntax(erow *row);
-int editor_syntax_to_colour(int hl);
-void editor_set_syntax(struct editor_syntax *syntax);
-int editor_select_syntax_highlight(char *mode);
+void syntax_update(erow *row);
+int syntax_to_colour(int hl);
+void syntax_set(struct editor_syntax *syntax);
+int syntax_select_highlight(char *mode);
 
 #endif
 

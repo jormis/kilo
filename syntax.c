@@ -22,7 +22,7 @@ is_separator(char c) {
 }
 
 void
-editor_update_syntax(erow *row) {
+syntax_update(erow *row) {
 	int i = 0; 
 	int prev_sep = 1; 
 	int in_string = 0; 
@@ -158,12 +158,12 @@ editor_update_syntax(erow *row) {
 	changed = (row->hl_open_comment != in_comment); 
 	row->hl_open_comment = in_comment; 
 	if (changed && row->idx + 1 < E->numrows) {
-		editor_update_syntax(&E->row[row->idx + 1]);
+		syntax_update(&E->row[row->idx + 1]);
 	}
 }
 
 int
-editor_syntax_to_colour(int hl) {
+syntax_to_colour(int hl) {
 	switch(hl) {
 		case HL_COMMENT: 
 		case HL_MLCOMMENT: return 36; 
@@ -176,8 +176,11 @@ editor_syntax_to_colour(int hl) {
 	}
 }
 
+/**
+        syntax_set() -- sets symtax for the entire file.
+*/
 void 
-editor_set_syntax(struct editor_syntax *syntax) {
+syntax_set(struct editor_syntax *syntax) {
 	int filerow; 
 
 	E->syntax = syntax; 
@@ -186,12 +189,12 @@ editor_set_syntax(struct editor_syntax *syntax) {
 	E->is_auto_indent = E->syntax->is_auto_indent;
 
 	for (filerow = 0; filerow < E->numrows; filerow++) {
-		editor_update_syntax(&E->row[filerow]); 
+		syntax_update(&E->row[filerow]); 
 	}
 }
 
 int
-editor_select_syntax_highlight(char *mode) {
+syntax_select_highlight(char *mode) {
 	unsigned int j; 
         int entries = hldb_entries();
 	int mode_found = 0; 
@@ -209,7 +212,7 @@ editor_select_syntax_highlight(char *mode) {
 		if (mode != NULL) {
 			if (s->filetype) {
 				if (! strcasecmp(mode, s->filetype)) {
-					editor_set_syntax(s);
+					syntax_set(s);
 
 					mode_found = 1; 
 					editor_set_status_message("Mode set to '%s'", s->filetype);
@@ -223,7 +226,7 @@ editor_select_syntax_highlight(char *mode) {
 				if (p != NULL) {
 					int patlen = strlen(s->filematch[i]); 
 					if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
-						editor_set_syntax(s);
+						syntax_set(s);
 						return 0; 
 					}
 				}
