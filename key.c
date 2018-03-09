@@ -3,9 +3,9 @@
 /* Defined in config.h */
 extern struct editor_config *E;
 
-/** editor_read_key */
+/** key_read() */
 int 
-editor_read_key() {
+key_read() {
   	int nread;
   	char c;
 
@@ -77,7 +77,7 @@ editor_read_key() {
 /**
 */
 int 
-editor_normalize_key(int c) {
+key_normalize(int c) {
 	if (c == CTRL_KEY('v'))
 		c = PAGE_DOWN;
 	else if (c == CTRL_KEY('y'))
@@ -112,7 +112,7 @@ editor_normalize_key(int c) {
 }
 
 void 
-editor_move_cursor(int key) {
+key_move_cursor(int key) {
 	int rowlen;
 	erow *row = (E->cy >= E->numrows) ? NULL : &E->row[E->cy];
 

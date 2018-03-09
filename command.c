@@ -268,7 +268,7 @@ editor_del_char(int undo) {
 	if (E->cy == E->numrows) {
 		if (E->cy > 0) {
 			if (undo)
-				editor_move_cursor(ARROW_LEFT);
+				key_move_cursor(ARROW_LEFT);
 			else
 				command_move_cursor(COMMAND_MOVE_CURSOR_LEFT);
 		}
@@ -327,7 +327,7 @@ editor_process_keypress() {
 	static int quit_times = KILO_QUIT_TIMES; 
 	static int previous_key = -1; 
 
-	int c = editor_normalize_key(editor_read_key());
+	int c = key_normalize(key_read());
 
 	/* Clipboard full after the first non-KILL_LINE_KEY. */
 	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY) {
@@ -733,20 +733,20 @@ command_move_cursor(int command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
 		/* Start macro */
 		undo_push_simple(COMMAND_MOVE_CURSOR_UP, COMMAND_MOVE_CURSOR_DOWN);
-		editor_move_cursor(ARROW_UP);
+		key_move_cursor(ARROW_UP);
 		/* End macro */
 		break;
 	case COMMAND_MOVE_CURSOR_DOWN:
 		undo_push_simple(COMMAND_MOVE_CURSOR_DOWN, COMMAND_MOVE_CURSOR_UP);
-		editor_move_cursor(ARROW_DOWN);
+		key_move_cursor(ARROW_DOWN);
 		break;
 	case COMMAND_MOVE_CURSOR_LEFT:
 		undo_push_simple(COMMAND_MOVE_CURSOR_LEFT, COMMAND_MOVE_CURSOR_RIGHT);
-		editor_move_cursor(ARROW_LEFT);
+		key_move_cursor(ARROW_LEFT);
 		break;
 	case COMMAND_MOVE_CURSOR_RIGHT:
 		undo_push_simple(COMMAND_MOVE_CURSOR_RIGHT, COMMAND_MOVE_CURSOR_LEFT);
-		editor_move_cursor(ARROW_RIGHT);
+		key_move_cursor(ARROW_RIGHT);
 		break;
 	default:
 		break;		

@@ -57,8 +57,8 @@ enum editor_key {
         GOTO_END_OF_FILE_KEY,   /* Esc-E */
 };
 
-int editor_read_key();
-int editor_normalize_key(int c);
-void editor_move_cursor(int key); 
+int key_read();
+int key_normalize(int c);
+void key_move_cursor(int key); 
 
 #endif

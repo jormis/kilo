@@ -118,16 +118,16 @@ undo() {
 
 	switch(top->undo_command_key) {
 	case COMMAND_MOVE_CURSOR_UP:
-		editor_move_cursor(ARROW_UP);
+		key_move_cursor(ARROW_UP);
 		break;
 	case COMMAND_MOVE_CURSOR_DOWN:
-		editor_move_cursor(ARROW_DOWN);
+		key_move_cursor(ARROW_DOWN);
 		break;
 	case COMMAND_MOVE_CURSOR_LEFT:
-		editor_move_cursor(ARROW_LEFT);
+		key_move_cursor(ARROW_LEFT);
 		break;
 	case COMMAND_MOVE_CURSOR_RIGHT:
-		editor_move_cursor(ARROW_RIGHT);
+		key_move_cursor(ARROW_RIGHT);
 		break;
 	case COMMAND_SET_TAB_STOP:
 		E->tab_stop = top->orig_value;
