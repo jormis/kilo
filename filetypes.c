@@ -172,7 +172,7 @@ char *JS_HL_keywords[] = {
 };
 
 char *Shell_HL_extensions[] = { ".sh", "profile", ".bash_profile", ".bashrc", 
-        ".bash_login", ".bash_logout", ".history", ".login", ".logout", 
+        ".bash_login", ".bash_logout", ".bash_history", ".history", ".login", ".logout", 
         "zshenv", "zprofile", "zshenv" "zshrc", "zlogin", "zlogout", 
         "csh.cshrc", "csh.login", ".cshrc", "csh.logout", ".tschrc", 
         ".cshdirs", 
