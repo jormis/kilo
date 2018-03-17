@@ -138,12 +138,22 @@ key_move_cursor(int key) {
                 }
                 break;
         case ARROW_UP:
-                if (E->cy != 0)
+                if (E->cy != 0) {
       		        E->cy--;
+                        if (E->cx > E->row[E->cy].size) {
+                                E->cx = E->row[E->cy].size;
+                                E->coloff = 0;
+                        }
+                }
                 break;
         case ARROW_DOWN:
-                if (E->cy < E->numrows)
-      		        E->cy++;
+                if (E->cy < E->numrows) {
+      		        E->cy++;                        
+                        if (E->cx > E->row[E->cy].size) {
+                                E->cx = E->row[E->cy].size;
+                                E->coloff = 0;
+                        }
+                }      
                 break;
         default:
                 break;
