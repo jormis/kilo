@@ -40,7 +40,7 @@
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are (M-x set-mode <mode>):\r\n" \
-	"Bazel, C, Docker, Elm, Erlang, Go, Java, JavaScript, Makefile, nginx,\r\n" \
+	"Bazel, C, Docker, Elm, Erlang, Go, Groovy, Java, JavaScript, Makefile, nginx,\r\n" \
         "Perl, PHP, Python, Ruby, Shell, SQL & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
