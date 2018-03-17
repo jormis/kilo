@@ -38,8 +38,10 @@
 
 /*** defines ***/
 /*
-	2018-03-06
+	2018-03-17
 	Latest:
+        - 0.4.2 Groovy mode
+        - 0.4.1 Some cleaning
         - 0.4   Split kilo.c into multiple files
         - 0.3.9.10 "Vagrantfile" triggers Ruby-mode
         - 0.3.9.9 Dockerfile mode name changed to Docker & added ".dockerignore" to Docker mode.
@@ -51,7 +53,7 @@
         - 0.3.9.3 Dockerfile mode
         - 0.3.9.2 refactor indent calculation a bit.
         - 0.3.9.1 Bazel autoindent && Erlang autoindent bug fix. TODO: generalize autoindent
-        - 0.3.9 Bazel-mode
+        - 0.3.9 Bazel mode
         - 0.3.8 refresh (Ctrl-L)
         - 0.3.7 goto-beginning & goto-end (Esc-A, Esc-E)
         - Undo for next & previous buffer commands. (2017-05-30)

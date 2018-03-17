@@ -1005,6 +1005,37 @@ char *go_HL_keywords[] = {
         
 };
 
+char *groovy_HL_extensions[] = { ".groovy", NULL };
+char *groovy_HL_keywords[] = {
+        "as", "assert",
+        "break",
+        "case", "catch", "class", "const", "continue", 
+        "def", "default", "do",
+        "else", "enum", "extends", 
+        "false", "finally", "for",
+        "goto",
+        "if", "implements", "import", "in", "instanceof", "interface",
+        "new", "null", 
+        "package",
+        "return", 
+        "super", "static", "switch", 
+        "this", "throw", "throws", "trait", "true", "try", 
+        "while",
+        
+        "boolean|", "Boolean|",
+        "byte|", "Byte|",
+        "char|", "Character|",
+        "double|", "Double|",
+        "float|", "Float|",
+        "int|", "Integer|",
+        "long|", "Long|",
+        "short", "Short|",
+        "void|", 
+        
+        NULL
+};
+ 
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -1175,6 +1206,16 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4, 
                 1      
+        },
+        {
+                "Groovy",
+                groovy_HL_extensions, 
+                groovy_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
         }
 };
 

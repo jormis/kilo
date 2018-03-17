@@ -22,7 +22,7 @@ is_indent(erow *row, char *triggers) {
         if (row == NULL || triggers == NULL || strlen(triggers) == 0) 
                 return 0;
                 
-        for (i = E->cx-1; i >= 0; i--) {  
+        for (i = E->cx-1; i >= 0; i--) {
                 /* Check if the char in row belongs to trigger chars. */
                 for (j = 0; j < strlen(triggers); j++) {
                         if (row->chars[i] == triggers[j])
@@ -281,6 +281,12 @@ calculate_indent(erow *row) {
                                 no_of_chars_to_indent += is_indent(row, "([") * E->tab_stop;
 			} else if (!strcasecmp(E->syntax->filetype, "nginx")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+			} else if (!strcasecmp(E->syntax->filetype, "Java")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+			} else if (!strcasecmp(E->syntax->filetype, "JavaScript")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+			} else if (!strcasecmp(E->syntax->filetype, "Groovy")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         } else if (!strcasecmp(E->syntax->filetype, "go")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         }
@@ -330,15 +336,14 @@ editor_insert_newline() {
 
 		// Update the split upper row.
 		row = &E->row[E->cy]; /* Reassign, because editor_insert_row() calls realloc(). */
-		row->size = E->cx; 
-		row->chars[row->size] = '\0'; 
+		row->size = E->cx;
+		row->chars[row->size] = '\0';
 
-		editor_update_row(row); 
+		editor_update_row(row);
 	}
 	
-	E->cy++; 
-	E->cx = no_of_chars_to_indent; // was: = 0 
+	E->cy++;
+	E->cx = no_of_chars_to_indent; // was: = 0
 
-	return no_of_chars_to_indent; 
+	return no_of_chars_to_indent;
 }
-
