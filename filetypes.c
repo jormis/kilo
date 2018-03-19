@@ -1034,7 +1034,22 @@ char *groovy_HL_keywords[] = {
         
         NULL
 };
- 
+
+char *R_HL_extensions[] = { ".R", NULL }; 
+char *R_HL_keywords[] = {
+        "...", // The dot-dot-dot object type
+        "break",
+        "else",
+        "FALSE", "for", "function", 
+        "if", "in", "Inf",
+        "NA", "NaN", "NA_integer_", "NA_real_", "NA_complex_", "NA_character_", 
+        "next", "NULL",
+        "repeat", 
+        "switch", // Not a reserved word but I'll include it.
+        "TRUE",
+        "while",   
+        NULL
+}; 
 
 struct editor_syntax HLDB[] = {
 	{
@@ -1216,14 +1231,25 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1
+        },
+        {
+                "R",
+                R_HL_extensions, 
+                R_HL_keywords,
+                "#",
+                "", "",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                2,
+                1
         }
 };
 
-/* macro replacement */
+/** 
+        hldb_entries(): A  macro replacement for
+        #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
+*/
 int
 hldb_entries() {
         return sizeof(HLDB) / sizeof(HLDB[0]);        
 }
 
-//#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
- 

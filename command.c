@@ -288,6 +288,10 @@ editor_del_char(int undo) {
 			int current_cx = E->cx;
 			E->cx = orig_cx;
 
+                        // FIXME undo as a single undo command
+                        // as currently we can only pop one from the stack.
+                        // Should do it, though.
+
 			while (current_cx < E->cx) {
 				E->cx = current_cx; 
 				if (!undo) {
@@ -298,9 +302,10 @@ editor_del_char(int undo) {
 						undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, 
 							E->is_soft_indent ? (int) ' ' : (int) '\t');
 					}
-				}
+				} 
 				current_cx++;
 			}
+
 		}
 
 		E->cx = orig_cx - len;
@@ -312,9 +317,11 @@ editor_del_char(int undo) {
                 }
 
 	} else { 
-		if (!undo)
+                if (!undo) {
 			undo_push_one_int_arg(COMMAND_DELETE_CHAR, COMMAND_INSERT_CHAR, '\r');
-
+                } else {
+                        // FIXME undo insert_newline.
+                }  
 		E->cx = E->row[E->cy - 1].size; 
 		editor_row_append_string(&E->row[E->cy - 1], row->chars, row->size); 
 		editor_del_row(E->cy);
@@ -329,8 +336,12 @@ void
 editor_process_keypress() {
 	static int quit_times = KILO_QUIT_TIMES; 
 	static int previous_key = -1; 
-
+                
 	int c = key_normalize(key_read());
+
+        // Cut and paste fix?
+        if (previous_key != '\r' && c == '\n')
+                c = '\r';
 
 	/* Clipboard is deemed full after the first non-KILL_LINE_KEY. */
 	if (previous_key == KILL_LINE_KEY && c != KILL_LINE_KEY) {
