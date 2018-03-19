@@ -38,8 +38,9 @@
 
 /*** defines ***/
 /*
-	2018-03-17
+	2018-03-19
 	Latest:
+        - 0.4.3 R mode
         - 0.4.2 Groovy mode
         - 0.4.1 Some cleaning
         - 0.4   Split kilo.c into multiple files
