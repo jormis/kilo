@@ -18,7 +18,7 @@ extern struct editor_syntax HLDB[];
 
 int
 is_separator(char c) {
-	return isspace(c) || c == '\0' || strchr(",.(){}+-/*=~%<>[];", c) != NULL;
+	return isspace(c) || c == '\0' || strchr(",.(){}+-/*=~%<>[];:", c) != NULL;
 }
 
 void
