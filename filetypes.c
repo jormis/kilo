@@ -1005,7 +1005,7 @@ char *go_HL_keywords[] = {
         
 };
 
-char *groovy_HL_extensions[] = { ".groovy", NULL };
+char *groovy_HL_extensions[] = { ".groovy", ".gradle", NULL };
 char *groovy_HL_keywords[] = {
         "as", "assert",
         "break",
