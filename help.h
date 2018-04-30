@@ -32,7 +32,7 @@
         "\tEsc-A            Beginning of file\r\n" \
         "\tEsc-E            End of file\r\n" \
 	"\r\n" \
-	"Esc-X <command> runs commands, <command> is on the following:\r\n" \
+	"Esc-X <command> runs commands, <command> is one of the following:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
 	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
         "\tcreate-buffer, next-buffer, previous-buffer, delete-buffer\r\n" \
