@@ -107,7 +107,7 @@ char *Erlang_HL_keywords[] = {
         NULL
 };
 
-char *JS_HL_extensions[] = { ".js", NULL };
+char *JS_HL_extensions[] = { ".js", ".json", NULL };
 char *JS_HL_keywords[] = {
         "abstract", "arguments", "await", 
         "boolean|", "break", "byte|",
