@@ -291,6 +291,8 @@ calculate_indent(erow *row) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         } else if (!strcasecmp(E->syntax->filetype, "go")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+                        } else if (!strcasecmp(E->syntax->filetype, "Haxe")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         }
 		} else if (!E->is_soft_indent
 		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {

@@ -38,8 +38,9 @@
 
 /*** defines ***/
 /*
-	2018-03-19
+	2018-06-08
 	Latest:
+        - 0.4.4 Haxe mode
         - 0.4.3 R mode
         - 0.4.2 Groovy mode
         - 0.4.1 Some cleaning

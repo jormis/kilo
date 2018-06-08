@@ -1051,6 +1051,32 @@ char *R_HL_keywords[] = {
         NULL
 }; 
 
+char *Haxe_HL_extensions[] = { ".hx", NULL };
+char *Haxe_HL_keywords[] = {
+        "abstract", 
+        "break",
+        "case", "cast", "catch", "class", "continue",
+        "default", "do", "dynamic",
+        "else", "enum", "extends", "extern", 
+        "false", "for", "function", 
+        "if", "implements", "import", "in", "inline", "interface",
+        "macro",
+        "new", "null", 
+        "override", 
+        "package", "private", "public",
+        "return",
+        "static", "switch",
+        "this", "throw", "true", "try", "typedef",
+        "untyped", "using",
+        "var", 
+        "while", 
+        
+        "#if",
+        "#else", "#elseif", "#end",
+        
+        NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -1240,6 +1266,16 @@ struct editor_syntax HLDB[] = {
                 "", "",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 2,
+                1
+        },
+        {
+                "Haxe",
+                Haxe_HL_extensions, 
+                Haxe_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
                 1
         }
 };

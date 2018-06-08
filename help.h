@@ -32,7 +32,7 @@
         "\tEsc-A            Beginning of file\r\n" \
         "\tEsc-E            End of file\r\n" \
 	"\r\n" \
-	"Esc-X <command> runs commands, <command> is one of the following:\r\n" \
+	"Esc-X <command> to run commands, where <command> is one of:\r\n" \
 	"\tset-tab-stop, set-auto-indent, set-hard-tabs, set-soft-tabs,\r\n" \
 	"\tsave-buffer-as, open-file, undo, set-mode, goto-line\r\n" \
         "\tcreate-buffer, next-buffer, previous-buffer, delete-buffer\r\n" \
@@ -40,8 +40,8 @@
         "\tgoto-beginning, goto-end, refresh\r\n" \
 	"\r\n" \
 	"The supported higlighted file modes are (M-x set-mode <mode>):\r\n" \
-	"Bazel, C, Docker, Elm, Erlang, Go, Groovy, Java, JavaScript, Makefile, nginx,\r\n" \
-        "Perl, PHP, Python, R, Ruby, Shell, SQL & Text.\r\n" \
+	"Bazel, C, Docker, Elm, Erlang, Go, Groovy, Haxe, Java, JavaScript,\r\n" \
+        "Makefile, nginx, Perl, PHP, Python, R, Ruby, Shell, SQL & Text.\r\n" \
         "\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
         "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
