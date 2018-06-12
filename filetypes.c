@@ -90,7 +90,7 @@ char *Python_HL_keywords[] = {
 	NULL
 };
 
-char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", NULL };
+char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", ".properties", NULL };
 char *Text_HL_keywords[] = { NULL };
 
 char *Makefile_HL_extensions[] = { "Makefile", "makefile", ".mk", ".mmk", NULL };
