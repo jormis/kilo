@@ -786,8 +786,8 @@ command_goto_line() {
                 free(char_arg); 
         }
         
-        if (int_arg >= 0 && int_arg < E->numrows) { 
-                E->cy = int_arg;
+        if (int_arg > 0 && int_arg < E->numrows) { 
+                E->cy = int_arg - 1; 
                 command_refresh_screen();        
         }
         free(char_arg); 
