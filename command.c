@@ -784,6 +784,7 @@ command_goto_line() {
         } else if (rc == -1) {
                 editor_set_status_message(c->error_status, char_arg);
                 free(char_arg); 
+                return;
         }
         
         if (int_arg > 0 && int_arg < E->numrows) { 
