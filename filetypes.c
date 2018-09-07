@@ -1077,6 +1077,45 @@ char *Haxe_HL_keywords[] = {
         NULL
 };
 
+char *Chapel_HL_extensions[] = { ".chpl", NULL };
+char *Chapel_HL_keywords[] = {
+        /* "_" */
+        "align", "as", "atomic", 
+        "begin", "break", "by", 
+        "class", "cobegin", "coforall", "config", "const", "continue", 
+        "delete", "dmapped", "do", "domain",
+        "else", "enum", "except", "extern", 
+        "for", "forall", 
+        "if", "in", "index", "inline", "inout", "iter", 
+        "label", "let", "local", 
+        "module",
+        "new", "nil", "noinit", 
+        "on", "only", "otherwise", "out",
+        "param", "private", "proc", "public", 
+        "record", "reduce", "ref", "require", "return", 
+        "scan", "select", "serial", "single", "sparse", "subdomain", "sync",
+        "then", "type", 
+        "union", "use",
+        "var",
+        "when", "where", "while", "with", 
+        "yield", 
+        "zip",
+        
+        /* Spec 0.985: 6.4.2 Reserved for future use. */
+        "lambda", 
+
+        /* Primitive Types */
+        "bool|", 
+        "complex|",
+        "imag|", "int|",
+        "real|",
+        "string|",
+        "uint|", 
+        "void|", 
+        
+        NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -1272,6 +1311,16 @@ struct editor_syntax HLDB[] = {
                 "Haxe",
                 Haxe_HL_extensions, 
                 Haxe_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "Chapel",
+                Chapel_HL_extensions, 
+                Chapel_HL_keywords,
                 "//",
                 "/*", "*/",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
