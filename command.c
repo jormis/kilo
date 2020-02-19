@@ -599,6 +599,7 @@ editor_save(int command_key) {
 			E->absolute_filename = realpath(E->filename, NULL); 
 			E->basename = editor_basename(E->filename);
                         syntax_select_highlight(NULL);
+                        //free(tmp);
 
 		} else {
 			editor_set_status_message(STATUS_MESSAGE_ABORTED); // TODO ABORT message in conf.
@@ -607,11 +608,23 @@ editor_save(int command_key) {
 	}
 
 	buf = editor_rows_to_string(&len);
+
+
+        if (buf == NULL || buf[0] == '\0') {
+                if (! E->dirty) { 
+                        editor_set_status_message("Empty buffer -- not saved.");
+                        return;
+                } else {
+                        // Add a newline and re-buf.
+                        editor_insert_newline();
+                        buf = editor_rows_to_string(&len);                                 
+                }
+        }
+
 	fd = open(E->filename, O_RDWR | O_CREAT, 0644);
 	if (fd != -1) {
 		if (ftruncate(fd, len) != -1) {
 			if (write(fd, buf, len) == len) {
-                                char *status_filename = NULL;
                 
                                 close(fd);
                                 free(buf);
@@ -620,24 +633,27 @@ editor_save(int command_key) {
 
                                 // if (strlen(abs) + strlen(success) > TERMINAL.screencols (not 100% acc)
                                 // then cut X 
-                                if (strlen(E->absolute_filename) + strlen(c->success) > TERMINAL.screencols) {
+                                if (E->absolute_filename
+                                        && (strlen(E->absolute_filename) + strlen(c->success) > TERMINAL.screencols)) {
+                                        char *status_filename = malloc(TERMINAL.screencols + 1);
+
                                         int truncate_len = strlen(E->absolute_filename) + strlen(c->success) 
                                                 - TERMINAL.screencols + 3; // "..."
-                                        status_filename = malloc(TERMINAL.screencols + 1);
+                                                
                                         memset(status_filename, '\0', TERMINAL.screencols + 1);
                                         strncpy(status_filename, "...", 3);
                                         strncpy(status_filename+3, E->absolute_filename+truncate_len, 
                                                 strlen(E->absolute_filename)-truncate_len);
                                         status_filename[TERMINAL.screencols] = '\0';        
+                                        editor_set_status_message(c->success, // TODO Special case: both %d and %s
+                                                len, status_filename); // ? E->absolute_filename : E->filename);
+                                        //free(status_filename);
                                 } else {
-                                        status_filename = E->absolute_filename;
+                                        editor_set_status_message(c->success, len, E->absolute_filename ? E->absolute_filename : E->filename);
                                 }
 
-                                editor_set_status_message(c->success, // TODO Special case: both %d and %s
-                                                len, status_filename); // ? E->absolute_filename : E->filename);
-                                free(status_filename);
-				return;
-			}
+				return; // fd closed, buf freed.
+			} // if write ok
 			syntax_select_highlight(NULL); 
 		}
 		close(fd);
