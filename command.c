@@ -594,12 +594,11 @@ editor_save(int command_key) {
 			free(E->absolute_filename);
 			free(E->basename);
 
-                        // TODO strdup & free
-			E->filename = tmp; 
-			E->absolute_filename = realpath(E->filename, NULL); 
+			E->filename = strdup(tmp); 
+			E->absolute_filename = strdup(E->filename); // realpath(E->filename, NULL) returns NULL.; 
 			E->basename = editor_basename(E->filename);
                         syntax_select_highlight(NULL);
-                        //free(tmp);
+                        free(tmp);
 
 		} else {
 			editor_set_status_message(STATUS_MESSAGE_ABORTED); // TODO ABORT message in conf.
@@ -647,7 +646,7 @@ editor_save(int command_key) {
                                         status_filename[TERMINAL.screencols] = '\0';        
                                         editor_set_status_message(c->success, // TODO Special case: both %d and %s
                                                 len, status_filename); // ? E->absolute_filename : E->filename);
-                                        //free(status_filename);
+                                        free(status_filename);
                                 } else {
                                         editor_set_status_message(c->success, len, E->absolute_filename ? E->absolute_filename : E->filename);
                                 }
