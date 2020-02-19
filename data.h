@@ -29,7 +29,7 @@ struct editor_config {
 	char *filename; 
 	char *absolute_filename; 
 	char *basename; 
-	char statusmsg[80];
+	char statusmsg[256];
 	time_t statusmsg_time; 
 	struct editor_syntax *syntax; 
 	//struct termios orig_termios;

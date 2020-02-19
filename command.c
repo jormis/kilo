@@ -505,7 +505,7 @@ command_open_file(char *filename) {
         int free_filename = 0; 
         int int_arg;
         char *char_arg; 
-                        
+
         if (filename == NULL) {
                 struct command_str *c = command_get_by_key(COMMAND_OPEN_FILE);
                 int rc = editor_get_command_argument(c, &int_arg, &char_arg);
@@ -611,13 +611,31 @@ editor_save(int command_key) {
 	if (fd != -1) {
 		if (ftruncate(fd, len) != -1) {
 			if (write(fd, buf, len) == len) {
+                                char *status_filename = NULL;
+                
                                 close(fd);
                                 free(buf);
                                 E->dirty = 0;
                                 E->is_new_file = 0;  
-        		      
+
+                                // if (strlen(abs) + strlen(success) > TERMINAL.screencols (not 100% acc)
+                                // then cut X 
+                                if (strlen(E->absolute_filename) + strlen(c->success) > TERMINAL.screencols) {
+                                        int truncate_len = strlen(E->absolute_filename) + strlen(c->success) 
+                                                - TERMINAL.screencols + 3; // "..."
+                                        status_filename = malloc(TERMINAL.screencols + 1);
+                                        memset(status_filename, '\0', TERMINAL.screencols + 1);
+                                        strncpy(status_filename, "...", 3);
+                                        strncpy(status_filename+3, E->absolute_filename+truncate_len, 
+                                                strlen(E->absolute_filename)-truncate_len);
+                                        status_filename[TERMINAL.screencols] = '\0';        
+                                } else {
+                                        status_filename = E->absolute_filename;
+                                }
+
                                 editor_set_status_message(c->success, // TODO Special case: both %d and %s
-                                        len, E->absolute_filename ? E->absolute_filename : E->filename);
+                                                len, status_filename); // ? E->absolute_filename : E->filename);
+                                free(status_filename);
 				return;
 			}
 			syntax_select_highlight(NULL); 
@@ -628,7 +646,7 @@ editor_save(int command_key) {
 
 	editor_set_status_message(c->error_status, strerror(errno));
 	return; 
-} /* editor_save -> command_save ... */
+} /* editor_save -> Acommand_save ... */
 
 
 /*** M-x command ***/

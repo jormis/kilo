@@ -77,7 +77,7 @@ editor_find() {
 
 char *
 editor_prompt(char *prompt, void (*callback) (char *, int)) {
-	size_t bufsize = 128; 
+	size_t bufsize = 256; 
 	char *buf = malloc(bufsize); 
 	size_t buflen = 0; 
 	int c; 
