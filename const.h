@@ -1,7 +1,7 @@
 #ifndef CONST_H
 #define CONST_H
 
-#define KILO_VERSION "kilo -- a simple editor version 0.4.6"
+#define KILO_VERSION "kilo -- a simple editor version 0.4.7"
 #define WELCOME_STATUS_BAR "Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | kilo --help for more info"
 
 #define DEFAULT_KILO_TAB_STOP 8

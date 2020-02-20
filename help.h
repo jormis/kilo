@@ -41,8 +41,8 @@
 	"\r\n" \
 	"The supported higlighted file modes are (M-x set-mode <mode>):\r\n" \
 	"Bazel, C, Chapel, Docker, Elm, Erlang, Go, Groovy, Haxe, Java,\r\n" \
-        "JavaScript,Makefile, nginx, Perl, PHP, Python, R, Ruby, Shell,\r\n" \
-        "SQL & Text.\r\n" \
+        "JavaScript, Kotlin, Makefile, nginx, Perl, PHP, Python, R, Ruby,\r\n" \
+        "Shell, SQL & Text.\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
         "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
 

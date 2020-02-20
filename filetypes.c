@@ -1116,6 +1116,86 @@ char *Chapel_HL_keywords[] = {
         NULL
 };
 
+char *Kotlin_HL_extensions[] = { ".kt", NULL };
+char *Kotlin_HL_keywords[] = {
+
+        /* Hard keywords. */
+        "as", "as?", 
+        "break", 
+        "class", "continue", 
+        "do",
+        "else",
+        "false", "for", "fun", 
+        "if", "in", "!in", "interface", "is", "!is",
+        "null",
+        "object",
+        "package",
+        "return",
+        "super",
+        "this", "throw", "true", "try", "typealias", "typeof",
+        "val", "var", 
+        "when", "while",
+        
+        
+        /* Soft keywords */
+        "by", 
+        "catch", "constructor", 
+        "delegate", "dynamic", 
+        "field", "file", "finally", 
+        "get", 
+        "import", "init", 
+        "param", "property", 
+        "receiver", 
+        "set", "setparam",
+        "where",
+        
+        /* Modifier keywords */
+        "actual", "abstract", "annotation",
+        "companion", "const", "crossinline",
+        "data",
+        "enum", "expect", "external",
+        "final",
+        "infix", "inline", "inner", "internal", 
+        "lateinit", 
+        "noinline", 
+        "open", "operator", "out", "override",
+        "private", "protected", "public",
+        "reified",
+        "sealed", "suspend",
+        "tailrec", 
+        "vararg",
+        
+        /* Special identifiers */
+        "field",
+        "it",        
+
+        /* Data types */
+        "Boolean|",
+        "Byte|", 
+        "Char|",
+        "Double|",
+        "Float|",
+        "Int|", 
+        "Long|",
+        "Short|",
+        "String|",
+        
+        "Array|",
+        
+        /* Kotlin 1.3 ->, experimental */
+        "UByte|",
+        "UShort|",
+        "UInt|",
+        "ULong|",
+        
+        "UByteArray|",
+        "UShortArray|",
+        "UIntArray|",
+        "ULongArray|", 
+        
+        NULL
+};
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -1321,6 +1401,16 @@ struct editor_syntax HLDB[] = {
                 "Chapel",
                 Chapel_HL_extensions, 
                 Chapel_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "Kotlin",
+                Kotlin_HL_extensions, 
+                Kotlin_HL_keywords,
                 "//",
                 "/*", "*/",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
