@@ -275,7 +275,15 @@ char *Elm_HL_keywords[] = {
         /* Maybe not 'where' */
         "module", "where", "import", "exposing", "as", "port",
         "infix", "infixl", "infixr", 
-        
+      
+        "Empty", "False", "True",
+         
+        /* Types */
+        "Bool|",
+        "Float|",
+        "Int|",
+        "List|",
+        "String|",   
         NULL
 };  
 
