@@ -169,8 +169,11 @@ editor_draw_status_bar(struct abuf *ab) {
 
 	//ab_append(ab, "\x1b[7m", 4); 
 	esc_invert(ab);
-	len = snprintf(status, sizeof(status), "-- %.16s %s - %d lines %s", 
-		E->basename ? E->basename : "[No name]", E->is_new_file ? "(New file)" : "", E->numrows, 
+	//len = snprintf(status, sizeof(status), "-- %.48s %s - %d lines %s", 
+	len = snprintf(status, sizeof(status), "-- %.48s %s %s", 
+		E->basename ? E->basename : "[No name]", 
+                E->is_new_file ? "(New file)" : "",
+                // E->numrows, 
 		E->dirty ? "(modified)" : ""); 
 	rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", 
 		E->syntax != NULL ? E->syntax->filetype : "no ft", E->cy + 1, E->numrows);
