@@ -1204,6 +1204,45 @@ char *Kotlin_HL_keywords[] = {
         NULL
 };
 
+
+char *C_sharp_extensions[] = { ".cs", NULL };
+char *C_sharp_HL_keywords[] = {
+
+        /* Keywords */
+        "abstract", "as", 
+        "base", 
+        "case", "catch", "checked", "class", "const", "continue",
+        "default", "delegate", "do",
+        "else", "enum", "event", "explicit", "extern", 
+        "false", "finally", "fixed", "for", "foreach", 
+        "goto", 
+        "if", "implicit", "in", "interface", "internal", "is",
+        "lock", 
+        "namespace", "new", "null",
+        "operator", "out", "override", 
+        "params", "private", "protected", "public",
+        "readonly", "ref", "return", 
+        "sealed", "sizeof", "stackalloc", "static", "struct", "switch", 
+        "this", "throw", "true", "try", "typeof", 
+        "unchecked", "unsafe", "using", /* using static */
+        "var", "virtual", "volatile",
+        "while",
+        
+        /* Types */
+        "bool|", "byte|",
+        "decimal|", "double|", 
+        "float|",         
+        "int|",
+        "long|",
+        "object|",
+        "sbyte|", "short|", "string|",
+        "uint|", "ulong|", "ushort|", 
+        "void|",
+        
+        NULL
+};
+
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
@@ -1419,6 +1458,16 @@ struct editor_syntax HLDB[] = {
                 "Kotlin",
                 Kotlin_HL_extensions, 
                 Kotlin_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "C#",
+                C_sharp_extensions, 
+                C_sharp_HL_keywords,
                 "//",
                 "/*", "*/",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,

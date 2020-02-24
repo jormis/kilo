@@ -298,6 +298,8 @@ calculate_indent(erow *row) {
                         } else if (!strcasecmp(E->syntax->filetype, "Kotlin")) {
                                 no_of_chars_to_indent += is_indent(row, "{>") * E->tab_stop;
                                 // TODO add "->" -> change is_indent()'s 2nd arg as char ** ("}", "->")
+                        } else if (!strcasecmp(E->syntax->filetype, "C#")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
                         }
 		} else if (!E->is_soft_indent
 		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {
