@@ -292,6 +292,7 @@ calculate_indent(erow *row) {
 			} else if (is_mode("nginx") 
                                 || is_mode("Java")
                                 || is_mode("JavaScript")
+                                || is_mode("Scala")
 			        || is_mode("Groovy")
                                 || is_mode("R")
                                 || is_mode("go")

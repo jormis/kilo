@@ -1242,6 +1242,50 @@ char *C_sharp_HL_keywords[] = {
         NULL
 };
 
+char *Scala_HL_extensions[] = { ".scala", ".sbt", NULL };
+char *Scala_HL_keywords[] = {
+        /* Keywords */
+	"abstract", 
+        "case", "catch", "class", 
+	"def", "do", 
+        "else", "extends", 
+        "false", "final", "finally", "for", "forSome", 
+        "if", "implicit", "import",
+        "lazy",
+        "match",
+        "new", 
+        "object", "override", 
+        "package", "private", "protected",
+        "return",
+        "sealed", "super",
+        "this", "throw", "trait", "Try", "true", "type", 
+        "val", "Var", 
+        "while", "with", 
+        "yield",
+        
+        /* Not included
+        
+        "-", ":", "=", "=>", "<-", "<:", "<%", ">:", "#", "@" 
+        */
+        
+        /* Types */
+        
+        "Any|", "AnyRef|",
+	"Boolean|", "Byte|", 
+        "Char|", 
+        "Double|", 
+        "Float|", 
+        "Int|", 
+        "Long|",
+        "Null|",
+        "Nothing|",
+	"Short|",
+        "String|",
+        "Unit|",
+
+	NULL
+};
+
 
 struct editor_syntax HLDB[] = {
 	{
@@ -1468,6 +1512,16 @@ struct editor_syntax HLDB[] = {
                 "C#",
                 C_sharp_extensions, 
                 C_sharp_HL_keywords,
+                "//",
+                "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "Scala",
+                Scala_HL_extensions, 
+                Scala_HL_keywords,
                 "//",
                 "/*", "*/",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
