@@ -98,7 +98,7 @@ struct command_str COMMANDS[] = {
 		"save-buffer",
 		COMMAND_ARG_TYPE_STRING, /* Prompt for new file only. */
 		"Save as: %s",
-		"%d bytes written successfully to %s", // Special handling: %d and %s
+		"%d bytes written to %s", // Special handling: %d and %s
 		"Can't save, I/O error: %s" // %s = error
 	},
 	{
