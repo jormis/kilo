@@ -245,6 +245,16 @@ editor_insert_char(int c) {
 	E->cx += editor_row_insert_char(&E->row[E->cy], E->cx, c);  
 }
 
+/**
+* @return 1 if mode matches; 0 otherwise
+*/
+int
+is_mode(char *mode) {
+        if (! strcasecmp(E->syntax->filetype, mode))
+                return 1;
+        else
+                return 0; 
+}
 
 /**
  * If auto_indent is on then we calculate the number of indents.
@@ -271,36 +281,27 @@ calculate_indent(erow *row) {
 		if (E->is_soft_indent
 			&& (no_of_chars_to_indent % E->tab_stop == 0)) {
 
-			if (!strcasecmp(E->syntax->filetype, "Python")) { /* Little extra for Python mode. */
+			if (is_mode("Python")) { /* Little extra for Python mode. */
                                 no_of_chars_to_indent += is_indent(row, ":\\") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "Erlang")) {
+			} else if (is_mode("Erlang")) {
                                 no_of_chars_to_indent += is_indent(row, ">") * E->tab_stop; // > not ->
-			} else if (!strcasecmp(E->syntax->filetype, "Elm")) {
+			} else if (is_mode("Elm")) {
                                 no_of_chars_to_indent += is_indent(row, "=") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "Bazel")) {
+			} else if (is_mode("Bazel")) {
                                 no_of_chars_to_indent += is_indent(row, "([") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "nginx")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "Java")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "JavaScript")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "Groovy")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-			} else if (!strcasecmp(E->syntax->filetype, "R")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-                        } else if (!strcasecmp(E->syntax->filetype, "go")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-                        } else if (!strcasecmp(E->syntax->filetype, "Haxe")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-                        } else if (!strcasecmp(E->syntax->filetype, "Chapel")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
+			} else if (is_mode("nginx") 
+                                || is_mode("Java")
+                                || is_mode("JavaScript")
+			        || is_mode("Groovy")
+                                || is_mode("R")
+                                || is_mode("go")
+                                || is_mode("Haxe")
+                                || is_mode("C#")) {
+                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;                                
                         } else if (!strcasecmp(E->syntax->filetype, "Kotlin")) {
                                 no_of_chars_to_indent += is_indent(row, "{>") * E->tab_stop;
-                                // TODO add "->" -> change is_indent()'s 2nd arg as char ** ("}", "->")
-                        } else if (!strcasecmp(E->syntax->filetype, "C#")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;
-                        }
+                                // TODO add "->": change is_indent()'s 2nd arg as char ** ("}", "->")
+                        } 
 		} else if (!E->is_soft_indent
 		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {
                         // TODO like above 
