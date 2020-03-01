@@ -68,7 +68,7 @@ It is based on the kilo project (https://github.com/antirez/kilo):
 
 The supported higlighted file modes are (M-x set-mode <mode>):
 
-Bazel, C, Chapel, C#, Docker, Elm, Erlang, Go, Groovy, Java, JavaScript, 
+Awk, Bazel, C, Chapel, C#, Docker, Elm, Erlang, Go, Groovy, Java, JavaScript, 
 Kotlin, Makefile, nginx, Perl, PHP, Python, R, Ruby, Scala, Shell, SQL & Text.
 
 Usage: kilo [--help|--version|--debug level] [file] [file] ...

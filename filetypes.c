@@ -1286,6 +1286,60 @@ char *Scala_HL_keywords[] = {
 	NULL
 };
 
+char *AWK_HL_extensions[] = { ".awk", ".gawk", NULL };
+char *AWK_HL_keywords[] = {
+        /* https://www.gnu.org/software/gawk/manual/gawk.html */
+        
+        "BEGIN", "BEGINFILE", 
+        "END", "ENDFILE", 
+        
+        /* Predefined variables. */
+        "BINMODE|", 
+        "CONVFMT|",
+        "FIELDWIDTHS|", "FPAT|", "FS|",
+        "IGNORECASE|",
+        "LINT|",
+        "OFMT|", "OFS|", "OPS|",         
+        "PREC|", 
+        "ROUNDMODE|", "RS|", 
+        "SUBSEP|", 
+        "TEXTDOMAIN|", 
+
+        /* Built-in variables. */        
+        "ARGC|", "ARGV|", "ARGIND|", 
+        "ENVIRON|", "ERRNO|", 
+        "FILENAME|", "FNR|", "FUNCTAB|", 
+        "NF|", "NR|",
+        "PROCINFO|", 
+        "RLENGTH|", "RSTART|", "RT|", 
+        "SYMTAB|", 
+        
+        /* Reserved keywords and built-in functions (GAWK extensions) */
+        "and", "asort", "asorti", "atan2", 
+        "bindtextdomain", "break",
+        "close", "compl", "continue", "cos", 
+        "dcgettext", "dcngettext", "default", "delete", "do",
+        "else", "exit", "exp", 
+        "fflush", "function",
+        "gensub", "gsub", 
+        "if", "in", "index", "int", "isarray", 
+        "length", "log", "lshift",  
+        "match", "mktime",  
+        "next", "nextfile",
+        "or", 
+        "patsplit", "print", "printf",
+        "rand", "return", "rshift",  
+        "sin", "split", "sprintf", "sqrt", "srand", "strftime", "strtonum", 
+        "sub", "substr", "switch", "system", "systime",   
+        "tolower", "toupper", "typeof", 
+        "while",
+        "xor", 
+
+        /* Directives (GAWK) */
+        "@namespace", 
+        
+        NULL
+};
 
 struct editor_syntax HLDB[] = {
 	{
@@ -1524,6 +1578,16 @@ struct editor_syntax HLDB[] = {
                 Scala_HL_keywords,
                 "//",
                 "/*", "*/",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1
+        },
+        {
+                "Awk",
+                AWK_HL_extensions, 
+                AWK_HL_keywords,
+                "#",
+                "", "",
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1

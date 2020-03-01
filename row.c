@@ -297,6 +297,7 @@ calculate_indent(erow *row) {
                                 || is_mode("R")
                                 || is_mode("go")
                                 || is_mode("Haxe")
+                                || is_mode("Awk")
                                 || is_mode("C#")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;                                
                         } else if (!strcasecmp(E->syntax->filetype, "Kotlin")) {
