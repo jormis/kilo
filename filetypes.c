@@ -184,6 +184,43 @@ char *Shell_HL_keywords[] = {
 	"if", "then", "else", "elif", "fi",
 	"case", "esac", "for", "select", "while", "until",
 	"do", "done", "in", "function", "time", "[[", "]]",
+
+        /* GNU test command/builtin (test and [ ]) test switches.  */
+        "test",
+        "-a",   /* AND: expr -a expr */
+        "-o",   /* OR: expr -o expr */
+        "-n",   /* nonzero length: -n string. Equivalent to (just) string */
+        "-z",   /* zero length: -z string */
+        "-eq",  /* integer -eq integer: == */
+        "-ge",  /* integer -ge integer: >= */
+        "-gt",  /* integer -gt integer: > */
+        "-le",  /* integer -le integer: <= */
+        "-lt",  /* integer -lt integer: < */
+        "-ne",  /* integer -ne integer: != */  
+        
+        "-ef",  /* file1 -eq file2: files have the same device and inode numbers */
+        "-nt",  /* file1 -nt file2: file1 is newer than file2 (modification date) */
+        "-ot,", /* file1 -ot file2: file2 is older than file2 (modification date) */
+        "-b"    /* -b file: file exists and is block special */
+        "-c",   /* -c file: file exists and is character special */
+        "-d",   /* -d file: file exists and is a directory */
+        "-e",   /* -e file: file exists */
+        "-f",   /* -f file: file exists and is a regular file */
+        "-g",   /* -g file: file exists and is set-group-ID */
+        "-G",   /* -G file: file exists and is owned by the effective group ID */
+        "-h",   /* -h file: file exists and is a symbolic link: same as -L */
+        "-L",   /* -F file: file exists and is a symbolic link: same as -h */
+        "-k",   /* -k file: file exists and has its sticky bit set */
+        "-O",   /* -O file: file exists and is owned by the effective user ID */
+        "-p",   /* -p file: file exists and is a named pipe */
+        "-r",   /* -r file: file exists is read permission is granted */
+        "-s",   /* -s file: file exists and has a size greater than zero */
+        "-S",   /* -S file: file exists and is a socket */
+        "-t",   /* -t FD: file descriptor FD is opened on a terminal */
+        "-u",   /* -u file: file exists and its set-user-ID bit is set */
+        "-w",   /* -w file: file exists and write permission is granted */
+        "-x",   /* -x file: file exists and execute (search) permission is granted */
+        
 	NULL
 };
 
