@@ -535,9 +535,64 @@ get_executable_name(char *line, int linelen) {
         return name;
 }
 
+/**
+ * name = mode name
+ * -*- name -*-
+ * -*- mode:name-*-
+ * -*- mode:name; -*-
+ * -*- mode:name; .... -*-
+ * 
+ * whitespace ignored and not required
+ *
+ * return NULL or mode (malloc'd)
+ */
 char *
 get_mode_name(char *line, int linelen) {
-        return NULL; 
+        char *SEP = "-*-";
+        char *MODE = "mode:";
+        char *l = strndup(line, linelen);
+        
+        /* Starting -*- */
+        char *first = strstr(l, SEP);
+        if (first == NULL) {
+                free(l);
+                return NULL;
+        }
+        
+        first += strlen(SEP);
+        
+        char *after_mode = strstr(first, MODE);
+        
+        /* There was a 'mode:' keyword. */
+        if (after_mode != NULL) 
+                first = after_mode + strlen(MODE);
+                
+        char *second = strstr(first, SEP); 
+      
+        /* No ending -*-, so this line does not a mode contain. */  
+        if (second == NULL) {
+                free(l);
+                return NULL; 
+        }
+        
+
+        /* Past whitespace. */
+        while (*first != '\0' && isspace(*first))
+                first++;
+        
+        /* Find the end of the name. Because of C# mode '#' is accepted. */
+        char *name_end = first; 
+        while (isalnum(*name_end) || *name_end == '#') 
+                name_end++;
+                                
+        // Copy mode name.
+        char *mode_name = malloc(name_end - first + 1); 
+        strncpy(mode_name, first, name_end - first); 
+        mode_name[name_end - first] = '\0';
+        
+        free(l); 
+                 
+        return mode_name; 
 }
 
 /**
