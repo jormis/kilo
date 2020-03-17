@@ -193,8 +193,34 @@ syntax_set(struct editor_syntax *syntax) {
 	}
 }
 
+/**
+ * A helper function. Returns 1 if mode is set, 0 otherwise.
+ */
 int
-syntax_select_highlight(char *mode) {
+is_syntax_mode_set() {
+        return E->syntax != NULL;
+}
+
+/**
+ * An alias to syntax_select_highlight(char *mode)
+ */
+int
+syntax_set_highlight_mode_by_name(char *mode, int silent) {
+        return syntax_select_highlight(mode, silent);
+}
+
+/**
+ * Sets file mode for syntax highlighting.
+ *
+ * If mode == NULL try to match filename extension.
+ * if mode != NULL tries to find the corresponding match (see filetypes.c)
+ *
+ * if silent, suppress messages.
+ *
+ * return 0 ok, 1 = no file, mode, -1 = error
+ */
+int
+syntax_select_highlight(char *mode, int silent) {
 	unsigned int j; 
         int entries = hldb_entries();
 	int mode_found = 0; 
@@ -202,7 +228,7 @@ syntax_select_highlight(char *mode) {
 	E->syntax = NULL;
 
 	if (E->filename == NULL && mode == NULL)
-		return 0;  
+		return 1;  
 
 	for (j = 0; j < entries; j++) {
 		struct editor_syntax *s = &HLDB[j];
@@ -213,14 +239,12 @@ syntax_select_highlight(char *mode) {
 			if (s->filetype) {
 				if (! strcasecmp(mode, s->filetype)) {
 					syntax_set(s);
-
-					mode_found = 1; 
-					editor_set_status_message("Mode set to '%s'", s->filetype);
+                                        if (! silent)
+					   editor_set_status_message("Mode set to '%s'", s->filetype);
 					return 0; 
 				}
 			}
 		} else { /* mode == NULL, set it based on the filematch. */
-
 			while (s->filematch[i]) {
 				p = strstr(E->filename, s->filematch[i]); 
 				if (p != NULL) {
@@ -236,7 +260,8 @@ syntax_select_highlight(char *mode) {
 	}
 
 	if (mode != NULL && ! mode_found) {
-		editor_set_status_message("Unknown mode '%s'", mode);
+                if (! silent)
+		      editor_set_status_message("Unknown mode '%s'", mode);
 		return -1; 
 	}
 
