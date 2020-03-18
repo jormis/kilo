@@ -506,9 +506,18 @@ is_empty_line(char *line, int linelen) {
 }
 
 /* 
+ 
+ kilo implements more or less the GNU Emacs way of choosing the (major) mode.
+ 
+ https://www.gnu.org/software/emacs/manual/html_node/emacs/Choosing-Modes.html
+ 
+*/
+
+/* 
  * We have a line starting with the magic cookie, #! 
- * If the line is like #!executable or #!/path/to/executable (followed by EOL or whitespace 
- * and followed optionally by whatever) return 'executable'
+ * If the line is like #!executable or #!/path/to/executable 
+ * (followed by EOL or whitespace  and followed optionally by 
+ * whatever) return 'executable'
  * 
  * return NULL or char * pointing to executable name (malloc'd).
  */
@@ -519,7 +528,8 @@ get_executable_name(char *line, int linelen) {
         int last_sep = 1; 
 
         while (end < linelen && !isspace(line[end])) {
-                if (line[end] == '/') // FORGIVE ME: not Windows.
+                // Should work in Windows, because it is POSIX compliant.
+                if (line[end] == '/') 
                         last_sep = end;
                 end++;
         }
@@ -544,7 +554,7 @@ get_executable_name(char *line, int linelen) {
  * 
  * whitespace ignored and not required
  *
- * return NULL or mode (malloc'd)
+ * return NULL or mode (malloc'd, remember to free())
  */
 char *
 get_mode_name(char *line, int linelen) {
@@ -563,7 +573,7 @@ get_mode_name(char *line, int linelen) {
         
         char *after_mode = strstr(first, MODE);
         
-        /* There was a 'mode:' keyword. */
+        /* There was a 'mode:' keyword. (It is optional.) */
         if (after_mode != NULL) 
                 first = after_mode + strlen(MODE);
                 
@@ -572,9 +582,10 @@ get_mode_name(char *line, int linelen) {
         /* No ending -*-, so this line does not a mode contain. */  
         if (second == NULL) {
                 free(l);
-                return NULL; 
-        }
-        
+                return NULL;  
+       }
+       
+       /* There was an ending -*- */
 
         /* Past whitespace. */
         while (*first != '\0' && isspace(*first))
@@ -585,7 +596,6 @@ get_mode_name(char *line, int linelen) {
         while (isalnum(*name_end) || *name_end == '#') 
                 name_end++;
                                 
-        // Copy mode name.
         char *mode_name = malloc(name_end - first + 1); 
         strncpy(mode_name, first, name_end - first); 
         mode_name[name_end - first] = '\0';
@@ -625,16 +635,17 @@ command_open_file(char *filename) {
                         return;
                 }                
         }
-
+#if 0
+        // TODO: remove this block if it is not needed.
         if (E->dirty > 0  
                 || E->numrows > 0 || E->cx > 0 || E->cy > 0 
                 ||  E->filename != NULL) {
                 /* This buffer is in use. Create a new one & use it. */
                 (void) create_buffer(BUFFER_TYPE_FILE, 0, "FIXME: new buffer", COMMAND_NO_CMD); 
         }
-
+#endif
         E->filename = strdup(filename); 
-        syntax_select_highlight(NULL, 0);
+        syntax_set_mode_by_filename_extension(0);
 
 	E->absolute_filename = realpath(filename, NULL); 
 	E->basename = editor_basename(filename);
@@ -658,47 +669,41 @@ command_open_file(char *filename) {
 
         int match_executable            = !is_syntax_mode_set(); 
         int match_mode_from_comment     = match_executable;
-        int line_no                     = 0;
-                
+        int line_no                     = 0;                
         
   	while ((linelen = getline(&line, &linecap, fp)) != -1) {
                 if (linelen > 0 && (line[linelen - 1] == '\n' 
                         || line[linelen - 1] == '\r'))
       		        linelen--;
 
-                if (match_executable || match_mode_from_comment) {
+                if (match_executable || match_mode_from_comment)
                         line_no++; 
-                }
-                
-                if (! is_syntax_mode_set()) {
-                        if (match_executable) {
-                                // #!/path/to/ex
-                                if (line_no == 1 && linelen > 2 && line[0] == '#' && line[1] == '!') {
-                                        match_executable = 0; 
-                                        
-                                        char *executable_name = get_executable_name(line, linelen); // TODO write
 
-                                        // Match executable_name to mode.
-                                        if (executable_name != NULL 
-                                                && syntax_set_highlight_mode_by_name(executable_name, 1) == 0) {
-                                                match_mode_from_comment = 0;
-                                        }
+                /* #!/path/to/executable */                
+                if (match_executable) {
+                        if (line_no == 1 && linelen > 2 && line[0] == '#' && line[1] == '!') {
+                                match_executable = 0; 
                                         
-                                        free(executable_name);                                         
+                                char *executable_name = get_executable_name(line, linelen); 
+
+                                if (executable_name != NULL 
+                                        && syntax_set_mode_by_name(executable_name, 1) == 0) {
+                                        match_mode_from_comment = 0;
                                 }
+                                        
+                                free(executable_name);
                         }
+                }
                         
-                        if (match_mode_from_comment && line_no <= 2) {
-                                // Try to find -*- mode -*-
-                        
-                                char *mode_name = get_mode_name(line, linelen); // TODO write
-                                if (mode_name != NULL) {
-                                        match_mode_from_comment = match_executable = 0;
-                                        syntax_set_highlight_mode_by_name(mode_name, 1); 
-                                }
+                /* -*- mode -*- */
+                if (match_mode_from_comment && line_no <= 2) {
+                        char *mode_name = get_mode_name(line, linelen);
+                        if (mode_name != NULL) {
+                                match_mode_from_comment = match_executable = 0;
+                                syntax_set_mode_by_name(mode_name, 1); 
+                        }
                                 
-                                free(mode_name);                    
-                        }       
+                        free(mode_name);                    
                 }
 
                 editor_insert_row(E->numrows, line, linelen);
@@ -1040,7 +1045,7 @@ exec_command() {
 
 			switch (c->command_key) {
 			case COMMAND_SET_MODE:
-				if (syntax_set_highlight_mode_by_name(char_arg, 0) == 0) { 
+				if (syntax_set_mode_by_name(char_arg, 0) == 0) { 
 					editor_set_status_message(c->success, char_arg);
 				} else {
 					editor_set_status_message(c->error_status, char_arg);

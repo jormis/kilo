@@ -201,11 +201,15 @@ is_syntax_mode_set() {
         return E->syntax != NULL;
 }
 
+int
+syntax_set_mode_by_filename_extension(int silent) {
+        return syntax_select_highlight(NULL, silent);
+}
 /**
  * An alias to syntax_select_highlight(char *mode)
  */
 int
-syntax_set_highlight_mode_by_name(char *mode, int silent) {
+syntax_set_mode_by_name(char *mode, int silent) {
         return syntax_select_highlight(mode, silent);
 }
 
