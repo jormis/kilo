@@ -635,18 +635,16 @@ command_open_file(char *filename) {
                         return;
                 }                
         }
-#if 0
-        // TODO: remove this block if it is not needed.
+
+        /* Yes, needed. */
         if (E->dirty > 0  
                 || E->numrows > 0 || E->cx > 0 || E->cy > 0 
                 ||  E->filename != NULL) {
                 /* This buffer is in use. Create a new one & use it. */
                 (void) create_buffer(BUFFER_TYPE_FILE, 0, "FIXME: new buffer", COMMAND_NO_CMD); 
         }
-#endif
-        E->filename = strdup(filename); 
-        syntax_set_mode_by_filename_extension(0);
 
+        E->filename = strdup(filename); 
 	E->absolute_filename = realpath(filename, NULL); 
 	E->basename = editor_basename(filename);
 
@@ -656,6 +654,9 @@ command_open_file(char *filename) {
   			E->dirty = 0; 
                         if (free_filename)
                                 free(filename);
+                                                                
+                        syntax_set_mode_by_filename_extension(0);
+                        
   			return; 
   		} else {
   			die("stat");
@@ -679,6 +680,20 @@ command_open_file(char *filename) {
                 if (match_executable || match_mode_from_comment)
                         line_no++; 
 
+                /* -*- mode -*- */
+                if (match_mode_from_comment && line_no <= 2) {
+                        char *mode_name = get_mode_name(line, linelen);
+                        if (mode_name != NULL) {
+                                match_mode_from_comment = 0; 
+                                if (syntax_set_mode_by_name(mode_name, 0) == 0) {
+                                        // Only if mode matches.
+                                        match_executable = 0; 
+                                }                                  
+                        }
+                                
+                        free(mode_name);                    
+                }
+
                 /* #!/path/to/executable */                
                 if (match_executable) {
                         if (line_no == 1 && linelen > 2 && line[0] == '#' && line[1] == '!') {
@@ -687,7 +702,7 @@ command_open_file(char *filename) {
                                 char *executable_name = get_executable_name(line, linelen); 
 
                                 if (executable_name != NULL 
-                                        && syntax_set_mode_by_name(executable_name, 1) == 0) {
+                                        && syntax_set_mode_by_name(executable_name, 0) == 0) {
                                         match_mode_from_comment = 0;
                                 }
                                         
@@ -695,19 +710,11 @@ command_open_file(char *filename) {
                         }
                 }
                         
-                /* -*- mode -*- */
-                if (match_mode_from_comment && line_no <= 2) {
-                        char *mode_name = get_mode_name(line, linelen);
-                        if (mode_name != NULL) {
-                                match_mode_from_comment = match_executable = 0;
-                                syntax_set_mode_by_name(mode_name, 1); 
-                        }
-                                
-                        free(mode_name);                    
-                }
-
                 editor_insert_row(E->numrows, line, linelen);
 	}
+        
+        if (! is_syntax_mode_set())
+                syntax_set_mode_by_filename_extension(1);
 
 	free(line);
 	fclose(fp);

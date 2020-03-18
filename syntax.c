@@ -15,7 +15,6 @@ extern struct editor_config *E;
 extern struct editor_syntax HLDB[];
 
 /*** syntax highlighting ***/
-
 int
 is_separator(char c) {
 	return isspace(c) || c == '\0' || strchr(",.(){}+-/*=~%<>[];:", c) != NULL;
@@ -44,6 +43,7 @@ syntax_update(erow *row) {
 		return; 
 
 	in_comment = (row->idx > 0 && E->row[row->idx - 1].hl_open_comment); 
+
 	keywords = E->syntax->keywords; 
 
 	scs = E->syntax->singleline_comment_start;
@@ -193,6 +193,20 @@ syntax_set(struct editor_syntax *syntax) {
 	}
 }
 
+char *
+last_match(char *filename, char *extension) {
+        char *match = NULL; 
+        char *previous = NULL; 
+
+	while ((match = strstr(filename, extension)) != NULL) {
+                previous = match;
+                filename = match+strlen(filename);;
+        }
+        
+        // The last match.
+        return previous;        
+}
+
 /**
  * A helper function. Returns 1 if mode is set, 0 otherwise.
  */
@@ -238,22 +252,40 @@ syntax_select_highlight(char *mode, int silent) {
 		struct editor_syntax *s = &HLDB[j];
 		unsigned int i = 0;
 
-		/* Set explicitely based on cmd line option or M-x set-command-mode (& another prompt for the mode). */
+		/* Set explicitely based on cmd line option 
+                   or M-x set-command-mode (& another prompt for the mode). */
 		if (mode != NULL) {
-			if (s->filetype) {
-				if (! strcasecmp(mode, s->filetype)) {
-					syntax_set(s);
-                                        if (! silent)
-					   editor_set_status_message("Mode set to '%s'", s->filetype);
-					return 0; 
-				}
+                        /* set-mode <mode> or -*- <mode> -*- */
+			if (s->filetype 
+                                && !strcasecmp(mode, s->filetype)) {
+				syntax_set(s);
+                                if (! silent) {
+                                        editor_set_status_message("Mode set to '%s'", 
+                                                s->filetype);
+                                } 
+				return 0; 
 			}
+
+                        /* mode is #! executable ? */
+                        while (s->executables[i]) {
+                                // Or just a strncmp()? python37 vs python?
+                                p = strstr(mode, s->executables[i]);
+                                if (p != NULL) {
+                                      syntax_set(s); 
+                                      return 0;  
+                                }
+                                
+                                i++;
+                        }
 		} else { /* mode == NULL, set it based on the filematch. */
 			while (s->filematch[i]) {
-				p = strstr(E->filename, s->filematch[i]); 
+                                p = last_match(E->filename, s->filematch[i]); 
+                                
+				//p = strstr(E->filename, s->filematch[i]); 
 				if (p != NULL) {
 					int patlen = strlen(s->filematch[i]); 
-					if (s->filematch[i][0] != '.' || p[patlen] == '\0') {
+                                        if (p[patlen] == '\0') {
+                                                //s->filematch[i][0] != '.' || p[patlen] == '\0') {
 						syntax_set(s);
 						return 0; 
 					}
@@ -263,7 +295,8 @@ syntax_select_highlight(char *mode, int silent) {
 		}
 	}
 
-	if (mode != NULL && ! mode_found) {
+        // Mode was not found. 
+	if (mode != NULL) {
                 if (! silent)
 		      editor_set_status_message("Unknown mode '%s'", mode);
 		return -1; 

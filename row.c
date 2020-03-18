@@ -2,6 +2,7 @@
 #include <string.h>
 #include <strings.h>
 #include "row.h"
+#include "output.h"
 
 extern struct editor_config *E; 
 
@@ -37,7 +38,6 @@ is_indent(erow *row, char *triggers) {
         
         return 0; 
 } 
-
 
 int
 editor_row_cx_to_rx(erow *row, int cx) {
@@ -250,9 +250,9 @@ editor_insert_char(int c) {
 */
 int
 is_mode(char *mode) {
-        if (! strcasecmp(E->syntax->filetype, mode))
+        if (! strcasecmp(E->syntax->filetype, mode)) 
                 return 1;
-        else
+        else 
                 return 0; 
 }
 
@@ -298,6 +298,7 @@ calculate_indent(erow *row) {
                                 || is_mode("go")
                                 || is_mode("Haxe")
                                 || is_mode("Awk")
+                                || is_mode("C")
                                 || is_mode("C#")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;                                
                         } else if (!strcasecmp(E->syntax->filetype, "Kotlin")) {

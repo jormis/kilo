@@ -8,7 +8,8 @@
 #include "syntax.h"
 #include "highlight.h"
 
-char *C_HL_extensions[] = { ".c", ".h", ".cpp", NULL }; 
+char *C_extensions[] = { ".c", ".h", ".cpp", NULL }; 
+char *C_executables[] = { NULL }; 
 char *C_HL_keywords[] = {
 	"auto", "break", "case", "const", "continue", "default", "do", 
 	"else", "enum", "extern", "for", "goto", "if", "register", 
@@ -51,7 +52,7 @@ char *C_HL_keywords[] = {
 	NULL
 };
 
-char *Java_HL_extensions[] = { ".java", NULL };
+char *Java_extensions[] = { ".java", NULL };
 char *Java_HL_keywords[] = {
 	"abstract", "assert", "break", "case", "catch", "class", "const", 
 	"continue", "default", "do", "else", "enum", "extends", "final",
@@ -73,7 +74,7 @@ char *Java_HL_keywords[] = {
 	NULL
 };
 
-char *Python_HL_extensions[] = { ".py", NULL };
+char *Python_extensions[] = { ".py", NULL };
 char *Python_HL_keywords[] = {
 	"False", "None", "True", 
 	"and", "as", "assert", "break", "class", "continue", "def", "del", 
@@ -90,13 +91,13 @@ char *Python_HL_keywords[] = {
 	NULL
 };
 
-char *Text_HL_extensions[] = { ".txt", ".ini", ".cfg", ".properties", NULL };
+char *Text_extensions[] = { ".txt", ".ini", ".cfg", ".properties", NULL };
 char *Text_HL_keywords[] = { NULL };
 
-char *Makefile_HL_extensions[] = { "Makefile", "makefile", ".mk", ".mmk", NULL };
+char *Makefile_extensions[] = { "Makefile", "makefile", ".mk", ".mmk", NULL };
 char *Makefile_HL_keywords[] = { NULL };
 
-char *Erlang_HL_extensions[] = { ".erl", NULL };
+char *Erlang_extensions[] = { ".erl", NULL };
 char *Erlang_HL_keywords[] = {
         "after", "and", "andalso", "band", "begin", "bnot", "bor", 
         "bsl", "bsr", "bxor", "case", "catch", "cond", "div", "end",
@@ -107,7 +108,7 @@ char *Erlang_HL_keywords[] = {
         NULL
 };
 
-char *JS_HL_extensions[] = { ".js", ".json", NULL };
+char *JS_extensions[] = { ".js", ".json", NULL };
 char *JS_HL_keywords[] = {
         "abstract", "arguments", "await", 
         "boolean|", "break", "byte|",
@@ -171,14 +172,17 @@ char *JS_HL_keywords[] = {
         NULL
 };
 
-char *Shell_HL_extensions[] = { ".sh", "profile", ".bash_profile", ".bashrc", 
+char *Shell_extensions[] = { ".sh", "profile", ".bash_profile", ".bashrc", 
         ".bash_login", ".bash_logout", ".bash_history", ".history", ".login", ".logout", 
         "zshenv", "zprofile", "zshenv" "zshrc", "zlogin", "zlogout", 
         "csh.cshrc", "csh.login", ".cshrc", "csh.logout", ".tschrc", 
         ".cshdirs", 
         NULL 
 }; 
-        
+   
+char *Shell_executables[] = { "sh", "ash", "bash", "csh", "dash", "fish", 
+        "hush", "ksh", "mksh", "pdksh", "tcsh", "zsh", NULL };
+     
 char *Shell_HL_keywords[] = {
 	// compgen -k
 	"if", "then", "else", "elif", "fi",
@@ -224,7 +228,7 @@ char *Shell_HL_keywords[] = {
 	NULL
 };
 
-char *Perl_HL_extensions[] = { ".pl", ".perl", NULL };
+char *Perl_extensions[] = { ".pl", ".perl", NULL };
 char *Perl_HL_keywords[] = {
 	/* Perl functions. */
 	"-A", "-B", "-b", "-C", "-c", "-d", "-e", "-f", "-g", "-k", "-l", "-M", "-O", "-o", 
@@ -282,7 +286,7 @@ char *Perl_HL_keywords[] = {
 	NULL
 };
 
-char *Ruby_HL_extensions[] = { ".rb", "Vagrantfile", NULL };
+char *Ruby_extensions[] = { ".rb", "Vagrantfile", NULL };
 char *Ruby_HL_keywords[] = {
         "__ENCODING__", "__LINE__", "__FILE__", "BEGIN", "END", 
         "alias", "and", "begin", "break", 
@@ -306,7 +310,7 @@ char *Ruby_HL_keywords[] = {
 }; 
 
 /* https://guide.elm-lang.org */
-char *Elm_HL_extensions[] = { ".elm", NULL };
+char *Elm_extensions[] = { ".elm", NULL };
 char *Elm_HL_keywords[] = {
         "if", "then", "else", "case", "of", "let", "in", "type", 
         /* Maybe not 'where' */
@@ -324,7 +328,7 @@ char *Elm_HL_keywords[] = {
         NULL
 };  
 
-char *PHP_HL_extensions[] = { ".php", NULL };
+char *PHP_extensions[] = { ".php", NULL };
 char *PHP_HL_keywords[] = {
         "__halt_compiler", 
         "abstract", "and", "array", "as", 
@@ -358,7 +362,7 @@ char *PHP_HL_keywords[] = {
 };
 
 /* https://docs.bazel.build/versions/master/be/overview.html */
-char *Bazel_HL_extensions[] = { "WORKSPACE", "BUILD", ".bzl", NULL };
+char *Bazel_extensions[] = { "WORKSPACE", "BUILD", ".bzl", NULL };
 char *Bazel_HL_keywords[] = { 
         // Functions
         "load", "package", "package_group", "licenses", "exports_files",
@@ -405,7 +409,7 @@ char *Bazel_HL_keywords[] = {
 /* A .dockerignore file does not contain any Dockerfile keywords (unless by chance), 
    it's a newline separated list of patterns similar to file globs. But I wanted to 
    add it here to empasize its 'Dockerness'. */ 
-char *Dockerfile_HL_extensions[] = { "Dockerfile", ".dockerignore", NULL };
+char *Dockerfile_extensions[] = { "Dockerfile", ".dockerignore", NULL };
 char *Dockerfile_HL_keywords[] = {
         "ADD", "ARG", 
         "CMD", "COPY", 
@@ -423,7 +427,7 @@ char *Dockerfile_HL_keywords[] = {
         NULL
 };         
 
-char *SQL_HL_extensions[] = { ".sql", ".SQL", NULL };
+char *SQL_extensions[] = { ".sql", ".SQL", NULL };
 char *SQL_HL_keywords[] = {
         /* https://www.drupal.org/docs/develop/coding-standards/list-of-sql-reserved-words */
         "A", "ABORT", "ABS", "ABSOLUTE", "ACCESS", "ACTION", "ADA", "ADD", 
@@ -792,7 +796,7 @@ char *SQL_HL_keywords[] = {
         NULL
 };
 
-char *nginx_HL_extensions[] = { "nginx.conf", "global.conf", NULL };
+char *nginx_extensions[] = { "nginx.conf", "global.conf", NULL };
 char *nginx_HL_keywords[] = {
         /* http://nginx.org/en/docs/dirindex.html */
         "absolute_redirect", "accept_mutex", "accept_mutex_delay", 
@@ -1022,7 +1026,7 @@ char *nginx_HL_keywords[] = {
         NULL
 };
 
-char *go_HL_extensions[] = { ".go", NULL };
+char *go_extensions[] = { ".go", NULL };
 char *go_HL_keywords[] = {
         "break",
         "case", "chan", "const", "continue",
@@ -1050,7 +1054,7 @@ char *go_HL_keywords[] = {
         
 };
 
-char *groovy_HL_extensions[] = { ".groovy", ".gradle", NULL };
+char *groovy_extensions[] = { ".groovy", ".gradle", NULL };
 char *groovy_HL_keywords[] = {
         "as", "assert",
         "break",
@@ -1080,7 +1084,7 @@ char *groovy_HL_keywords[] = {
         NULL
 };
 
-char *R_HL_extensions[] = { ".R", NULL }; 
+char *R_extensions[] = { ".R", NULL }; 
 char *R_HL_keywords[] = {
         "...", // The dot-dot-dot object type
         "break",
@@ -1096,7 +1100,7 @@ char *R_HL_keywords[] = {
         NULL
 }; 
 
-char *Haxe_HL_extensions[] = { ".hx", NULL };
+char *Haxe_extensions[] = { ".hx", NULL };
 char *Haxe_HL_keywords[] = {
         "abstract", 
         "break",
@@ -1122,7 +1126,7 @@ char *Haxe_HL_keywords[] = {
         NULL
 };
 
-char *Chapel_HL_extensions[] = { ".chpl", NULL };
+char *Chapel_extensions[] = { ".chpl", NULL };
 char *Chapel_HL_keywords[] = {
         /* "_" */
         "align", "as", "atomic", 
@@ -1161,7 +1165,7 @@ char *Chapel_HL_keywords[] = {
         NULL
 };
 
-char *Kotlin_HL_extensions[] = { ".kt", NULL };
+char *Kotlin_extensions[] = { ".kt", NULL };
 char *Kotlin_HL_keywords[] = {
 
         /* Hard keywords. */
@@ -1180,8 +1184,7 @@ char *Kotlin_HL_keywords[] = {
         "this", "throw", "true", "try", "typealias", "typeof",
         "val", "var", 
         "when", "while",
-        
-        
+                
         /* Soft keywords */
         "by", 
         "catch", "constructor", 
@@ -1241,7 +1244,6 @@ char *Kotlin_HL_keywords[] = {
         NULL
 };
 
-
 char *C_sharp_extensions[] = { ".cs", NULL };
 char *C_sharp_HL_keywords[] = {
 
@@ -1279,7 +1281,7 @@ char *C_sharp_HL_keywords[] = {
         NULL
 };
 
-char *Scala_HL_extensions[] = { ".scala", ".sbt", NULL };
+char *Scala_extensions[] = { ".scala", ".sbt", NULL };
 char *Scala_HL_keywords[] = {
         /* Keywords */
 	"abstract", 
@@ -1323,7 +1325,8 @@ char *Scala_HL_keywords[] = {
 	NULL
 };
 
-char *AWK_HL_extensions[] = { ".awk", ".gawk", NULL };
+char *AWK_extensions[] = { ".awk", ".gawk", NULL };
+char *AWK_executables[] = { "awk", "gawk", "mawk", "nawk", NULL };
 char *AWK_HL_keywords[] = {
         /* https://www.gnu.org/software/gawk/manual/gawk.html */
         
@@ -1378,10 +1381,14 @@ char *AWK_HL_keywords[] = {
         NULL
 };
 
+/* */
+char *No_executables[] = { NULL };
+
 struct editor_syntax HLDB[] = {
 	{
 		"Text",
-		Text_HL_extensions,
+		Text_extensions,
+                No_executables,
 		Text_HL_keywords,
 		"#", 
 		"", "", 
@@ -1391,7 +1398,8 @@ struct editor_syntax HLDB[] = {
 	},
 	{
 		"Makefile",
-		Makefile_HL_extensions,
+		Makefile_extensions,
+                No_executables,
 		Makefile_HL_keywords, 
 		"#",
 		"", "", /* Comment continuation by backslash is missing. */
@@ -1401,7 +1409,8 @@ struct editor_syntax HLDB[] = {
 	},
 	{
 		"C", 
-		C_HL_extensions, 
+		C_extensions, 
+                No_executables,
 		C_HL_keywords,
 		"//", 
 		"/*", "*/",
@@ -1411,7 +1420,8 @@ struct editor_syntax HLDB[] = {
 	},
 	{
 		"Java", 
-		Java_HL_extensions, 
+		Java_extensions, 
+                No_executables,
 		Java_HL_keywords,
 		"//", 
 		"/*", "*/",
@@ -1421,7 +1431,8 @@ struct editor_syntax HLDB[] = {
 	},
 	{
 		"Python",
-		Python_HL_extensions,
+		Python_extensions,
+                No_executables,
 		Python_HL_keywords,
 		"#",
 		"'''", "'''",
@@ -1431,7 +1442,8 @@ struct editor_syntax HLDB[] = {
 	},
         {
                 "Erlang",
-                Erlang_HL_extensions, 
+                Erlang_extensions, 
+                No_executables,
                 Erlang_HL_keywords,
                 "%",
                 "", "",
@@ -1441,7 +1453,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "JavaScript",
-                JS_HL_extensions,
+                JS_extensions,
+                No_executables,
                 JS_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1451,7 +1464,8 @@ struct editor_syntax HLDB[] = {
         },
         {
         	"Shell",
-        	Shell_HL_extensions,
+        	Shell_extensions,
+                Shell_executables,
         	Shell_HL_keywords,
         	"#",
         	"", "",
@@ -1461,7 +1475,8 @@ struct editor_syntax HLDB[] = {
         },
         {
         	"Perl", 
-        	Perl_HL_extensions,
+        	Perl_extensions,
+                No_executables,
         	Perl_HL_keywords,
         	"#", 
         	"", "", /* ^= ^= comments missing */
@@ -1471,7 +1486,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Ruby",
-                Ruby_HL_extensions, 
+                Ruby_extensions, 
+                No_executables,
                 Ruby_HL_keywords,
                 "#",
                 "", "",
@@ -1481,7 +1497,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "PHP",
-                PHP_HL_extensions, 
+                PHP_extensions, 
+                No_executables,
                 PHP_HL_keywords,
                 "//", // TODO also '#'
                 "/*", "*/",
@@ -1491,7 +1508,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Elm",
-                Elm_HL_extensions,
+                Elm_extensions,
+                No_executables,
                 Elm_HL_keywords,
                 "--",
                 "", "",
@@ -1501,7 +1519,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Bazel",
-                Bazel_HL_extensions,
+                Bazel_extensions,
+                No_executables,
                 Bazel_HL_keywords,
                 "#",
                 "", "",
@@ -1511,7 +1530,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Docker",
-                Dockerfile_HL_extensions,
+                Dockerfile_extensions,
+                No_executables,
                 Dockerfile_HL_keywords,
                 "#",
                 "", "",
@@ -1521,7 +1541,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "SQL",
-                SQL_HL_extensions,
+                SQL_extensions,
+                No_executables,
                 SQL_HL_keywords,
                 "--",
                 "/*", "*/",
@@ -1531,7 +1552,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "nginx",
-                nginx_HL_extensions,
+                nginx_extensions,
+                No_executables,
                 nginx_HL_keywords,
                 "#",
                 "", "", 
@@ -1541,7 +1563,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "go",
-                go_HL_extensions,
+                go_extensions,
+                No_executables,
                 go_HL_keywords,
                 "//",
                 "/*", "*/", 
@@ -1551,7 +1574,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Groovy",
-                groovy_HL_extensions, 
+                groovy_extensions, 
+                No_executables,
                 groovy_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1561,7 +1585,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "R",
-                R_HL_extensions, 
+                R_extensions, 
+                No_executables,
                 R_HL_keywords,
                 "#",
                 "", "",
@@ -1571,7 +1596,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Haxe",
-                Haxe_HL_extensions, 
+                Haxe_extensions, 
+                No_executables,
                 Haxe_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1581,7 +1607,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Chapel",
-                Chapel_HL_extensions, 
+                Chapel_extensions, 
+                No_executables,
                 Chapel_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1591,7 +1618,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Kotlin",
-                Kotlin_HL_extensions, 
+                Kotlin_extensions, 
+                No_executables,
                 Kotlin_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1602,6 +1630,7 @@ struct editor_syntax HLDB[] = {
         {
                 "C#",
                 C_sharp_extensions, 
+                No_executables,
                 C_sharp_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1611,7 +1640,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Scala",
-                Scala_HL_extensions, 
+                Scala_extensions, 
+                No_executables,
                 Scala_HL_keywords,
                 "//",
                 "/*", "*/",
@@ -1621,7 +1651,8 @@ struct editor_syntax HLDB[] = {
         },
         {
                 "Awk",
-                AWK_HL_extensions, 
+                AWK_extensions, 
+                AWK_executables, 
                 AWK_HL_keywords,
                 "#",
                 "", "",

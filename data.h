@@ -45,11 +45,12 @@ struct editor_config {
 
 
 struct editor_syntax {
-	char *filetype; 
-	char **filematch; 
-	char **keywords; 
-	char *singleline_comment_start; 
-	char *multiline_comment_start; 
+        char *filetype;                // The Mode name
+        char **filematch;              // A list of file extensions.
+        char **executables;            // The basename executable in #!
+	char **keywords;               
+	char *singleline_comment_start;
+	char *multiline_comment_start;  
 	char *multiline_comment_end; 
 	int flags; // HARD_TAB here
 	int tab_stop; 
