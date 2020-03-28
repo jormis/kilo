@@ -1332,7 +1332,7 @@ char *Lua_HL_keywords[] = {
         "and",
         "break",
         "do",
-        "else", "elseif", "end"
+        "else", "elseif", "end",
         "false", "for", "function",
         "if", "in",
         "local", 
