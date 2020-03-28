@@ -1,6 +1,13 @@
 #ifndef DATA_H
 #define DATA_H
-
+/**
+ * data.h
+ *
+ * Contains data structures for 
+ * - text row
+ * - editor config
+ * - editor (buffer/file) syntax
+ */
 #include <ctype.h>
 #include <time.h>
 
@@ -21,8 +28,6 @@ struct editor_config {
 	int rx; 
 	int rowoff;
 	int coloff; 
-	//int screenrows; TODO reintroduce
-	//int screencols; TODO reintroduce
 	int numrows;
 	erow *row; 
 	int dirty; 
@@ -32,7 +37,6 @@ struct editor_config {
 	char statusmsg[256];
 	time_t statusmsg_time; 
 	struct editor_syntax *syntax; 
-	//struct termios orig_termios;
 	int is_new_file; 
 	int is_banner_shown; /* If shown once do not show again. */
 	int is_soft_indent; 
@@ -41,6 +45,7 @@ struct editor_config {
 	int debug; 
         /* Set by COMMAND_MARK. Default values -1. */
         int mark_x, mark_y; 
+        int ascii_only; 
 };
 
 

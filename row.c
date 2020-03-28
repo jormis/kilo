@@ -39,6 +39,60 @@ is_indent(erow *row, char *triggers) {
         return 0; 
 } 
 
+/* 
+* [start, p[
+*
+* return 1 is only whitespace between start and p-1, 0 otherwise.
+*/
+int
+is_whitespace_between(char *start, char *p) {
+        while (start < p && isspace(*start))
+                start++;
+        
+        return start == p; 
+}
+
+/* */
+int
+is_whitespace_to_end(char *p) {
+        while (isspace(*p))
+                p++;
+                
+        return *p == '\0';
+}
+
+/**
+ * Fails with ^(WHITESPACE*)<< comment >>(WHITESPACE*)token 
+ */
+int 
+is_first_token(erow *row, char *token) { 
+        if (row == NULL || row->chars == NULL || token == NULL)
+                return 0; 
+                 
+        char *p = strstr(row->chars, token); 
+        if (p == NULL) 
+                return 0;         
+
+        char *start = row->chars; 
+        while (start < p && isspace(*start))
+                start++;
+        
+        return start == p;
+}
+
+int
+is_last_token(erow *row, char *token) {
+        if (row == NULL || row->chars == NULL || token == NULL)
+                return 0; 
+                 
+        char *p = strstr(row->chars, token);
+        if (p == NULL) 
+                return 0; 
+                
+        p += strlen(token);
+        
+        return is_whitespace_to_end(p);
+}
 int
 editor_row_cx_to_rx(erow *row, int cx) {
 	int rx = 0;
@@ -301,9 +355,19 @@ calculate_indent(erow *row) {
                                 || is_mode("C")
                                 || is_mode("C#")) {
                                 no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;                                
-                        } else if (!strcasecmp(E->syntax->filetype, "Kotlin")) {
+                        } else if (is_mode("Kotlin")) {
                                 no_of_chars_to_indent += is_indent(row, "{>") * E->tab_stop;
                                 // TODO add "->": change is_indent()'s 2nd arg as char ** ("}", "->")
+                        } else if (is_mode("Lua")) {
+                                // do, then, else, elseif and ) in a function row
+                                if (is_last_token(row, "do") || is_last_token(row, "then") 
+                                        || is_last_token(row, "else")|| is_last_token(row, "elseif")) {
+                                        // The last character of each keyword. A hack. 
+                                        no_of_chars_to_indent += is_indent(row, "onef") * E->tab_stop; 
+                                                
+                                } else if (is_first_token(row, "function")) {
+                                        no_of_chars_to_indent += is_indent(row, ")") * E->tab_stop; 
+                                }
                         } 
 		} else if (!E->is_soft_indent
 		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {

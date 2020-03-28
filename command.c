@@ -848,7 +848,10 @@ command_get_by_key(int command_key) {
 
 void
 command_insert_char(int character) {
-	if (character <= 31 && character != 9) // TODO 9 = TABKEY
+
+        
+	if (E->ascii_only 
+                && character <= 31 && character != 9) // TODO 9 = TABKEY
 		return;
 
 	undo_push_simple(COMMAND_INSERT_CHAR, COMMAND_DELETE_CHAR);

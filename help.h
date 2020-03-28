@@ -3,7 +3,7 @@
 
 #include "const.h"
 
-#define KILO_HELP "\r\n\r\nkilo is a simple text editor that understands ascii.\r\n" \
+#define KILO_HELP "\r\n\r\nkilo is a simple text editor.\r\n" \
  	"Basic Commands:\r\n" \
 	"\tCtrl-Q   quit\r\n" \
 	"\tCtrl-F   find\r\n" \
@@ -41,8 +41,8 @@
 	"\r\n" \
 	"The supported higlighted file modes are (M-x set-mode <mode>):\r\n" \
 	"Awk, Bazel, C, Chapel, C#, Docker, Elm, Erlang, Go, Groovy, Haxe,\r\n" \
-        "Java, JavaScript, Kotlin, Makefile, nginx, Perl, PHP, Python, R,\r\n" \
-        "Ruby, Scala, Shell, SQL & Text.\r\n" \
+        "Java, JavaScript, Kotlin, Lua, Makefile, nginx, Perl, PHP, Python,\r\n" \
+        "R, Ruby, Scala, Shell, SQL & Text.\r\n" \
         "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
         "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
 

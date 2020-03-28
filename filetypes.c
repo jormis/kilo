@@ -1325,6 +1325,27 @@ char *Scala_HL_keywords[] = {
 	NULL
 };
 
+
+char *Lua_extensions[] = { ".lua", NULL };
+// Default executable.
+char *Lua_HL_keywords[] = { 
+        "and",
+        "break",
+        "do",
+        "else", "elseif", "end"
+        "false", "for", "function",
+        "if", "in",
+        "local", 
+        "nil", "not", 
+        "or",
+        "repeat", "return", 
+        "then", "true", 
+        "until",
+        "while", 
+        
+        NULL
+};
+
 char *AWK_extensions[] = { ".awk", ".gawk", NULL };
 char *AWK_executables[] = { "awk", "gawk", "mawk", "nawk", NULL };
 char *AWK_HL_keywords[] = {
@@ -1659,6 +1680,17 @@ struct editor_syntax HLDB[] = {
                 HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
                 4,
                 1
+        },
+        {
+                "Lua",
+                Lua_extensions,
+                No_executables,
+                Lua_HL_keywords,
+                "--",
+                "--[[", "--]]",
+                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+                4,
+                1                
         }
 };
 

@@ -84,6 +84,8 @@ parse_options(int argc, char **argv) {
 		} else if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
 			display_help();
 			exit(0);
+                } else if (!strcmp(argv[1], "-a") || !strcmp(argv[1], "--ascii")) {
+                        E->ascii_only = 1; 
 		} else {
                         open_argument_files(1, argc, argv, c->success);
 
