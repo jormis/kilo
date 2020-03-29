@@ -241,7 +241,7 @@ int
 syntax_select_highlight(char *mode, int silent) {
 	unsigned int j; 
         int entries = hldb_entries();
-	int mode_found = 0; 
+	//int mode_found = 0; 
 	char *p = NULL ;
 	E->syntax = NULL;
 
