@@ -43,8 +43,8 @@
 	"Awk, Bazel, C, Chapel, C#, Docker, Elm, Erlang, Go, Groovy, Haxe,\r\n" \
         "Java, JavaScript, Kotlin, Lua, Makefile, nginx, Perl, PHP, Python,\r\n" \
         "R, Ruby, Scala, Shell, SQL & Text.\r\n" \
-        "Usage: kilo [--help|--version|--debug level] [file] [file] ...\r\n" \
-        "\tDebug levels: 1 = undo stack; 4 = cursor x & y coordinates.\r\n"  
+        "Usage: kilo [--help|-h|--version|-v|--ascii|-a] [--] [file] [file] ...\r\n" \
+        "\t--ascii allows only ascii characters.\r\n"  
 
 void display_help();
 #endif

@@ -1,5 +1,4 @@
 /*
-
         kilo -- lightweight editor
 
         Based on the kilo project (https://github.com/antirez/kilo):
@@ -32,6 +31,7 @@
 
 #include "kilo.h"
 #include "output.h"
+#include "options.h"
 
 /** buffers **/
 
@@ -53,18 +53,56 @@ handle_resize(int dummy) {
 }
 
 void 
-open_argument_files(int index, int argc, char **argv, char *success) {
+open_argument_files(int argc, char **argv, int index) {
+        struct command_str *c = command_get_by_key(COMMAND_OPEN_FILE);
+
+        if (index >= argc)
+                return; 
+                
         /* We have already called init_buffer() once before argument parsing. */
         command_open_file(argv[index]);
         
         while (++index < argc) {
-                (void) create_buffer(BUFFER_TYPE_FILE, 0, success, COMMAND_NO_CMD);
+                (void) create_buffer(BUFFER_TYPE_FILE, 0, c->success, COMMAND_NO_CMD);
                 command_open_file(argv[index]);
         }
 }
 
+
 void
 parse_options(int argc, char **argv) {
+        int file_index = 0; // Start index of file names.
+         
+        Option *list = options_parse(argc, argv, "version|v,help|h,debug|d:i,ascii|a", &file_index);
+        
+        while (list != NULL) { // options_parse can return NULL
+                if (list->is_set) {
+                        if (! strcmp(list->long_option, "debug") 
+                                || ! strcmp(list->short_option, "d")) {
+                                E->debug = list->value.numeric; 
+                        } else if (! strcmp(list->long_option, "ascii")
+                                || ! strcmp(list->short_option, "a")) {
+                                E->ascii_only = 1;                
+                        } else if (! strcmp(list->long_option, "version") 
+                                || ! strcmp(list->short_option, "v")) {
+                                print_version();
+                                exit(0);
+                        } else if (! strcmp(list->long_option, "help") 
+                                || ! strcmp(list->short_option, "h")) {
+                                display_help();
+                                exit(0);
+                        }
+                }
+                list = list->next; 
+        }
+                
+       if (file_index < argc)         
+                open_argument_files(argc, argv, file_index);
+}       
+
+#if 0
+void
+old_parse_options(int argc, char **argv) {
         struct command_str *c = command_get_by_key(COMMAND_OPEN_FILE);
 	if (argc >= 3) {
 		if (!strcmp(argv[1], "-d") || !strcmp(argv[1], "--debug")) {
@@ -92,6 +130,7 @@ parse_options(int argc, char **argv) {
 		}
 	}
 }
+#endif
 
 int 
 main(int argc, char **argv) {

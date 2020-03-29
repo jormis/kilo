@@ -71,6 +71,5 @@ The supported higlighted file modes are (M-x set-mode <mode>):
 Awk, Bazel, C, Chapel, C#, Docker, Elm, Erlang, Go, Groovy, Java, JavaScript, 
 Kotlin, Lua, Makefile, nginx, Perl, PHP, Python, R, Ruby, Scala, Shell, SQL & Text.
 
-Usage: kilo [--help|--version|--debug level] [file] [file] ...
-	Debug levels: 1 = undo stack; 4 = cursor x & y coordinates.
-
+Usage: kilo [--help|-h|--version|-v|--debug level|-d|-ascii|-a] [--] [file] [file] ...
+	--ascii or -a allows only for ascii characters.

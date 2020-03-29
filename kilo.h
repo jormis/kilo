@@ -38,8 +38,11 @@
 
 /*** defines ***/
 /*
-	2018-06-08
+	2020-03-29
 	Latest:
+        - 0.4.14 more proper options parsing
+        - ... lots of modes, like Awk, C#, Kotlin, Lua, ...
+        - ... Emacs-like mode parsing from executable or -*- <mode> -*-
         - 0.4.4 Haxe mode
         - 0.4.3 R mode
         - 0.4.2 Groovy mode
