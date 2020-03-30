@@ -3,11 +3,13 @@
 #include <strings.h>
 #include "row.h"
 #include "output.h"
+#include "token.h"
 
 extern struct editor_config *E; 
 
 /*** row operations ***/
 
+#if 0
 /* 
         is_indent(row, triggers) 
         Note: Erlang's "->" is reduced to ">" 
@@ -93,6 +95,9 @@ is_last_token(erow *row, char *token) {
         
         return is_whitespace_to_end(p);
 }
+
+#endif
+
 int
 editor_row_cx_to_rx(erow *row, int cx) {
 	int rx = 0;
@@ -336,13 +341,13 @@ calculate_indent(erow *row) {
 			&& (no_of_chars_to_indent % E->tab_stop == 0)) {
 
 			if (is_mode("Python")) { /* Little extra for Python mode. */
-                                no_of_chars_to_indent += is_indent(row, ":\\") * E->tab_stop;
+                                no_of_chars_to_indent += is_indent(row->chars, ":\\", E->cx) * E->tab_stop;
 			} else if (is_mode("Erlang")) {
-                                no_of_chars_to_indent += is_indent(row, ">") * E->tab_stop; // > not ->
+                                no_of_chars_to_indent += is_indent(row->chars, ">", E->cx) * E->tab_stop; // > not ->
 			} else if (is_mode("Elm")) {
-                                no_of_chars_to_indent += is_indent(row, "=") * E->tab_stop;
+                                no_of_chars_to_indent += is_indent(row->chars, "=", E->cx) * E->tab_stop;
 			} else if (is_mode("Bazel")) {
-                                no_of_chars_to_indent += is_indent(row, "([") * E->tab_stop;
+                                no_of_chars_to_indent += is_indent(row->chars, "([", E->cx) * E->tab_stop;
 			} else if (is_mode("nginx") 
                                 || is_mode("Java")
                                 || is_mode("JavaScript")
@@ -354,23 +359,25 @@ calculate_indent(erow *row) {
                                 || is_mode("Awk")
                                 || is_mode("C")
                                 || is_mode("C#")) {
-                                no_of_chars_to_indent += is_indent(row, "{") * E->tab_stop;                                
+                                no_of_chars_to_indent += is_indent(row->chars, "{", E->cx) * E->tab_stop;                                
                         } else if (is_mode("Kotlin")) {
-                                no_of_chars_to_indent += is_indent(row, "{>") * E->tab_stop;
+                                no_of_chars_to_indent += is_indent(row->chars, "{>", E->cx) * E->tab_stop;
                                 // TODO add "->": change is_indent()'s 2nd arg as char ** ("}", "->")
                         } else if (is_mode("Lua")) {
                                 // do, then, else, elseif and ) in a function row
-                                if (is_last_token(row, "do") || is_last_token(row, "then") 
-                                        || is_last_token(row, "else")|| is_last_token(row, "elseif")) {
+                                if (is_last_token(row->chars, "do") 
+                                        || is_last_token(row->chars, "then") 
+                                        || is_last_token(row->chars, "else")
+                                        || is_last_token(row->chars, "elseif")) {
                                         // The last character of each keyword. A hack. 
-                                        no_of_chars_to_indent += is_indent(row, "onef") * E->tab_stop; 
+                                        no_of_chars_to_indent += is_indent(row->chars, "onef", E->cx) * E->tab_stop; 
                                                 
-                                } else if (is_first_token(row, "function")) {
-                                        no_of_chars_to_indent += is_indent(row, ")") * E->tab_stop; 
+                                } else if (is_first_token(row->chars, "function")) {
+                                        no_of_chars_to_indent += is_indent(row->chars, ")", E->cx) * E->tab_stop; 
                                 }
                         } 
 		} else if (!E->is_soft_indent
-		 	&& !strcasecmp(E->syntax->filetype, "Makefile")) {
+		 	&& ! strcasecmp(E->syntax->filetype, "Makefile")) {
                         // TODO like above 
 			iter = 1; 
 			for (i = 0; iter && i < E->cx; i++) {

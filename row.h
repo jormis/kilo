@@ -27,7 +27,4 @@ int calculate_indent(erow *row);
 int editor_insert_newline();
 void editor_del_char(int undo); /** XXX command delete char */
 
-/** Indentation needs work & configuration. */
-int is_indent(erow *row, char *triggers);
-
 #endif
